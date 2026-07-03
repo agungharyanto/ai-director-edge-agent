@@ -1,12 +1,15 @@
 services:
-  edge-agent:
+  edge-recorder:
     build:
-      context: ./edge-agent
+      context: .
       dockerfile: Dockerfile
-    container_name: ai-director-edge-agent
+    container_name: ai-director-edge-recorder
+    user: "1000:1000"
     env_file:
       - .env
+    environment:
+      - TZ=Asia/Jakarta
     volumes:
       - ./recordings:/recordings
       - ./logs:/logs
-    restart: "no"
+    restart: unless-stopped
