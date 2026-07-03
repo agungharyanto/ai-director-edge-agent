@@ -1,0 +1,12 @@
+services:
+  edge-agent:
+    build:
+      context: ./edge-agent
+      dockerfile: Dockerfile
+    container_name: ai-director-edge-agent
+    env_file:
+      - .env
+    volumes:
+      - ./recordings:/recordings
+      - ./logs:/logs
+    restart: "no"

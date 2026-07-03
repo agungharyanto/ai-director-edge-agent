@@ -13,3 +13,20 @@ Command:
 
 Status:
 - Siap push/pull via SSH.
+
+## 004 - Edge Agent v0.1.0 Basic Recorder
+
+Tujuan:
+- Membuat Docker image sendiri untuk AI Director Edge Agent.
+- FFmpeg berjalan dari Python script.
+- Recording RTSP kamera Hikvision ke MP4.
+- Video H264 copy.
+- Audio G.711 transcoding ke AAC 128kbps.
+
+File:
+- edge-agent/Dockerfile
+- edge-agent/app/main.py
+- docker-compose.yml
+
+Status:
+- Edge Agent v0.1.0 basic recorder.
