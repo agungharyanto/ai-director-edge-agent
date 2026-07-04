@@ -9,5 +9,6 @@ services:
       - ./recordings:/recordings
       - ./scripts:/scripts
       - ./logs:/logs
+      - ./config:/config
     restart: unless-stopped
     command: /scripts/record-loop.sh
