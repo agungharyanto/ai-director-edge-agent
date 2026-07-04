@@ -1,41 +1,36 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 
-: "${RTSP_URL:?RTSP_URL is required}"
-: "${CAMERA_NAME:?CAMERA_NAME is required}"
-: "${SEGMENT_SECONDS:=60}"
+CAMERA_NAME="${CAMERA_NAME:-padel-cam-01}"
+SEGMENT_SECONDS="${SEGMENT_SECONDS:-60}"
+RECORDINGS_DIR="${RECORDINGS_DIR:-/recordings}"
 
-echo "AI Director Edge Recorder started"
-echo "Camera: ${CAMERA_NAME}"
-echo "Segment seconds: ${SEGMENT_SECONDS}"
+OUT_DIR="$RECORDINGS_DIR/$CAMERA_NAME/incoming"
+mkdir -p "$OUT_DIR"
+
+echo "Starting recorder for $CAMERA_NAME"
+echo "Segment duration: $SEGMENT_SECONDS seconds"
+echo "Output dir: $OUT_DIR"
 
 while true; do
-  YEAR=$(date +%Y)
-  MONTH=$(date +%m)
-  DAY=$(date +%d)
-  HOUR=$(date +%H)
-  TS=$(date +%Y-%m-%d_%H-%M-%S)
-
-  OUT_DIR="/recordings/${CAMERA_NAME}/${YEAR}/${MONTH}/${DAY}/${HOUR}"
-  OUT_FILE="${OUT_DIR}/${TS}.mp4"
-
-  mkdir -p "$OUT_DIR"
-
-  echo "Recording to ${OUT_FILE}"
+  TS="$(date +"%Y%m%d_%H%M%S")"
+  TMP_FILE="$OUT_DIR/${TS}.tmp.mp4"
+  FINAL_FILE="$OUT_DIR/${TS}.mp4"
 
   ffmpeg \
     -hide_banner \
-    -fflags +genpts \
-    -use_wallclock_as_timestamps 1 \
     -rtsp_transport tcp \
     -i "$RTSP_URL" \
     -t "$SEGMENT_SECONDS" \
+    -map 0:v:0 \
+    -map 0:a? \
     -c:v copy \
     -c:a aac \
-    -b:a 48k \
-    -movflags +faststart \
-    -y \
-    "$OUT_FILE" || true
+    -b:a 128k \
+    "$TMP_FILE"
 
-  sleep 1
+  mv "$TMP_FILE" "$FINAL_FILE"
+  /scripts/generate_metadata.sh "$FINAL_FILE"
+
+  echo "Created: $FINAL_FILE"
 done

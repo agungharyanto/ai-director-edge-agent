@@ -1,15 +1,12 @@
 services:
   edge-recorder:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     container_name: ai-director-edge-recorder
-    user: "1000:1000"
     env_file:
       - .env
-    environment:
-      - TZ=Asia/Jakarta
     volumes:
       - ./recordings:/recordings
+      - ./scripts:/scripts
       - ./logs:/logs
     restart: unless-stopped
+    command: /scripts/record-loop.sh
