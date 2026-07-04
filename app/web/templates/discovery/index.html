@@ -1,0 +1,97 @@
+{% extends "layout.html" %}
+{% set title = "Discovery - AI Director" %}
+{% set page_title = "Discovery Engine" %}
+
+{% block content %}
+
+<div id="scan-loading" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.45);z-index:9999">
+<div style="position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);background:white;padding:35px;border-radius:10px;text-align:center;width:360px">
+<i class="fas fa-spinner fa-spin fa-3x text-primary"></i>
+<h4 style="margin-top:20px">Scanning Network...</h4>
+<p>Mohon tunggu, AI Director sedang mencari kamera.</p>
+<div class="progress">
+<div class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%"></div>
+</div>
+</div>
+</div>
+
+<div class="card">
+<div class="card-header">
+<h3 class="card-title">Scan Network</h3>
+</div>
+
+<form method="POST" id="scan-form">
+<div class="card-body">
+<div class="form-group">
+<label>Network CIDR</label>
+<input type="text" name="network" class="form-control" value="{{ network }}" placeholder="Contoh: 192.168.1.0/24">
+<small class="text-muted">Gunakan subnet kecil dulu untuk testing, misal /24 atau /25.</small>
+</div>
+</div>
+
+<div class="card-footer">
+<button type="submit" id="scan-button" class="btn btn-primary">
+<i class="fas fa-search"></i> Scan
+</button>
+</div>
+</form>
+</div>
+
+<div class="card">
+<div class="card-header">
+<h3 class="card-title">Discovery Result</h3>
+</div>
+
+<div class="card-body table-responsive">
+<table class="table table-bordered table-striped">
+<tr>
+<th>IP</th>
+<th>Ping</th>
+<th>Open Ports</th>
+<th>Vendor</th>
+<th>Model</th>
+<th>Action</th>
+</tr>
+
+{% for item in results %}
+<tr>
+<td>{{ item["ip_address"] }}</td>
+<td>
+{% if item["ping"] == "UP" %}
+<span class="badge badge-success">UP</span>
+{% else %}
+<span class="badge badge-danger">DOWN</span>
+{% endif %}
+</td>
+<td>{{ item["ports"]|join(", ") }}</td>
+<td>{{ item["vendor"] }}</td>
+<td>{{ item["model"] }}</td>
+<td>
+<form method="POST" action="/discovery/import">
+<input type="hidden" name="ip_address" value="{{ item["ip_address"] }}">
+<input type="hidden" name="ports" value="{{ item["ports"]|join(",") }}">
+<input type="hidden" name="vendor" value="{{ item["vendor"] }}">
+<input type="hidden" name="model" value="{{ item["model"] }}">
+<button type="submit" class="btn btn-sm btn-success">Import</button>
+</form>
+</td>
+</tr>
+{% endfor %}
+</table>
+</div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('scan-form').addEventListener('submit', function(){
+    const loading = document.getElementById('scan-loading');
+    const button = document.getElementById('scan-button');
+
+    loading.style.display = 'block';
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scanning...';
+});
+</script>
+{% endblock %}

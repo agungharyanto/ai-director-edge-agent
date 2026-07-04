@@ -1,0 +1,108 @@
+{% extends "layout.html" %}
+
+{% set title = "Dashboard - AI Director" %}
+{% set page_title = "Dashboard" %}
+
+{% block content %}
+
+<div class="row">
+<div class="col-lg-3 col-6"><div class="small-box bg-info"><div class="inner"><h3>{{ stats["court_total"] }}</h3><p>Court</p></div><div class="icon"><i class="fas fa-table-tennis-paddle-ball"></i></div></div></div>
+<div class="col-lg-3 col-6"><div class="small-box bg-secondary"><div class="inner"><h3>{{ stats["camera_total"] }}</h3><p>Camera</p></div><div class="icon"><i class="fas fa-video"></i></div></div></div>
+<div class="col-lg-3 col-6"><div id="card-camera-up" class="small-box bg-success"><div class="inner"><h3 id="stat-camera-up">{{ stats["camera_ping_up"] }}</h3><p>Camera UP</p></div><div class="icon"><i class="fas fa-check-circle"></i></div></div></div>
+<div class="col-lg-3 col-6"><div id="card-camera-down" class="small-box {% if stats["camera_ping_down"] > 0 %}alarm-card{% else %}bg-danger{% endif %}"><div class="inner"><h3 id="stat-camera-down">{{ stats["camera_ping_down"] }}</h3><p>Camera DOWN</p></div><div class="icon"><i class="fas fa-triangle-exclamation"></i></div></div></div>
+</div>
+
+<div class="row">
+<div class="col-md-8">
+<div class="card">
+<div class="card-header"><h3 class="card-title">Health Monitoring</h3></div>
+<div class="card-body">
+<canvas id="health-chart" width="900" height="220" style="width:100%;max-height:260px;border:1px solid #ddd;background:#fafafa;margin-bottom:20px"></canvas>
+<table class="table table-bordered">
+<tr><td>CPU</td><td><span id="health-cpu">{{ health["cpu"] }}</span>%</td></tr>
+<tr><td>RAM</td><td><span id="health-ram">{{ health["ram"] }}</span>%</td></tr>
+<tr><td>Disk</td><td><span id="health-disk">{{ health["disk"] }}</span>%</td></tr>
+<tr><td>Temperature</td><td><span id="health-temperature">{{ health["temperature"] or "-" }}</span></td></tr>
+<tr><td>Last Update</td><td><span id="health-created-at">{{ health["created_at"] if health["created_at"] else "-" }}</span></td></tr>
+</table>
+</div>
+</div>
+</div>
+
+<div class="col-md-4">
+<div class="card">
+<div class="card-header"><h3 class="card-title">Edge Identity</h3></div>
+<div class="card-body">
+<table class="table table-sm">
+<tr><td>Site</td><td>{{ site_id }}</td></tr>
+<tr><td>Edge</td><td>{{ edge_id }}</td></tr>
+<tr><td>UUID</td><td style="word-break:break-all">{{ edge["uuid"] }}</td></tr>
+<tr><td>Hostname</td><td>{{ edge["hostname"] }}</td></tr>
+<tr><td>Version</td><td>{{ edge["app_version"] }}</td></tr>
+</table>
+</div>
+</div>
+</div>
+</div>
+
+<div class="card">
+<div class="card-header"><h3 class="card-title">Event Terbaru</h3></div>
+<div class="card-body table-responsive">
+<table class="table table-bordered table-striped">
+<tr><th>Type</th><th>Level</th><th>Message</th><th>Time</th></tr>
+{% for event in events %}
+<tr>
+<td>{{ event["event_type"] }}</td>
+<td>{{ event["level"] }}</td>
+<td>{{ event["message"] }}</td>
+<td>{{ event["created_at"] }}</td>
+</tr>
+{% endfor %}
+</table>
+</div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function formatTime(value){if(!value)return '-';const parts=value.split(' ');return parts.length<2?value:parts[1].slice(0,5);}
+
+function drawHealthChart(history){
+const canvas=document.getElementById('health-chart'); if(!canvas||!history||history.length===0)return;
+const ctx=canvas.getContext('2d'); const w=canvas.width; const h=canvas.height;
+ctx.clearRect(0,0,w,h);
+const left=50,right=20,top=25,bottom=35,chartW=w-left-right,chartH=h-top-bottom;
+ctx.font='12px Arial'; ctx.strokeStyle='#ddd'; ctx.fillStyle='#555'; ctx.lineWidth=1;
+for(let i=0;i<=5;i++){const y=top+i*(chartH/5);const value=100-i*20;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(w-right,y);ctx.stroke();ctx.fillText(value+'%',10,y+4);}
+function drawLine(key,label,color){ctx.beginPath();ctx.lineWidth=2;ctx.strokeStyle=color;history.forEach((p,i)=>{const x=left+i*(chartW/(history.length-1||1));const y=top+chartH-(Number(p[key]||0)/100)*chartH;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});ctx.stroke();const last=history[history.length-1];ctx.fillStyle=color;ctx.fillText(label+': '+last[key]+'%',left,label==='CPU'?16:label==='RAM'?32:48);}
+drawLine('cpu','CPU','green'); drawLine('ram','RAM','orange'); drawLine('disk','Disk','blue');
+ctx.fillStyle='#555'; const every=Math.ceil(history.length/6);
+history.forEach((p,i)=>{if(i%every!==0&&i!==history.length-1)return;const x=left+i*(chartW/(history.length-1||1));ctx.fillText(formatTime(p.created_at),x-15,h-10);});
+}
+
+async function refreshHealth(){
+const response=await fetch('/api/health'); const data=await response.json();
+document.getElementById('health-cpu').innerText=data.cpu;
+document.getElementById('health-ram').innerText=data.ram;
+document.getElementById('health-disk').innerText=data.disk;
+document.getElementById('health-temperature').innerText=data.temperature??'-';
+document.getElementById('health-created-at').innerText=data.created_at;
+drawHealthChart(data.history);
+}
+
+async function refreshCameraPing(){
+await fetch('/api/camera/ping');
+const response=await fetch('/api/dashboard/stats'); const stats=await response.json();
+document.getElementById('stat-camera-up').innerText=stats.camera_ping_up;
+document.getElementById('stat-camera-down').innerText=stats.camera_ping_down;
+const downCard=document.getElementById('card-camera-down');
+if(stats.camera_ping_down>0){downCard.classList.add('alarm-card');downCard.classList.remove('bg-danger');}
+else{downCard.classList.remove('alarm-card');downCard.classList.add('bg-danger');}
+}
+
+refreshHealth(); refreshCameraPing();
+setInterval(refreshHealth,10000);
+setInterval(refreshCameraPing,10000);
+</script>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "layout.html" %}
+{% set title = "Court - AI Director" %}
+{% set page_title = "Court Management" %}
+
+{% block content %}
+<div class="card">
+<div class="card-header">
+<h3 class="card-title">Court List</h3>
+<div class="card-tools">
+<a href="/court/create" class="btn btn-primary btn-sm">+ Tambah Court</a>
+</div>
+</div>
+
+<div class="card-body table-responsive">
+<table class="table table-bordered table-striped">
+<tr>
+<th>ID</th>
+<th>Nama</th>
+<th>Deskripsi</th>
+<th>Status</th>
+<th>UUID</th>
+</tr>
+
+{% for court in courts %}
+<tr>
+<td>{{ court["id"] }}</td>
+<td>{{ court["name"] }}</td>
+<td>{{ court["description"] }}</td>
+<td><span class="badge badge-success">{{ court["status"] }}</span></td>
+<td style="word-break:break-all">{{ court["uuid"] }}</td>
+</tr>
+{% endfor %}
+</table>
+</div>
+</div>
+{% endblock %}

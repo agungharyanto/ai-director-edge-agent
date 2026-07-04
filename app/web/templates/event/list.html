@@ -1,0 +1,102 @@
+{% extends "layout.html" %}
+{% set title = "Event Log - AI Director" %}
+{% set page_title = "Event Log" %}
+
+{% block content %}
+
+<div class="card">
+<div class="card-header">
+<h3 class="card-title">Filter Event</h3>
+</div>
+
+<div class="card-body">
+<form method="GET" action="/event">
+
+<div class="row">
+<div class="col-md-3">
+<label>Type</label>
+<select name="type" class="form-control">
+<option value="">Semua Type</option>
+{% for item in types %}
+<option value="{{ item['event_type'] }}" {% if selected_type == item['event_type'] %}selected{% endif %}>{{ item["event_type"] }}</option>
+{% endfor %}
+</select>
+</div>
+
+<div class="col-md-2">
+<label>Level</label>
+<select name="level" class="form-control">
+<option value="">Semua Level</option>
+{% for item in levels %}
+<option value="{{ item['level'] }}" {% if selected_level == item['level'] %}selected{% endif %}>{{ item["level"] }}</option>
+{% endfor %}
+</select>
+</div>
+
+<div class="col-md-3">
+<label>Message</label>
+<input type="text" name="message" class="form-control" placeholder="Cari message" value="{{ selected_message }}">
+</div>
+
+<div class="col-md-2">
+<label>Start Time</label>
+<input type="datetime-local" name="start_time" class="form-control" value="{{ selected_start_time }}">
+</div>
+
+<div class="col-md-2">
+<label>End Time</label>
+<input type="datetime-local" name="end_time" class="form-control" value="{{ selected_end_time }}">
+</div>
+</div>
+
+<br>
+
+<button type="submit" class="btn btn-primary">Filter</button>
+<a href="/event" class="btn btn-secondary">Reset Filter</a>
+
+</form>
+</div>
+</div>
+
+<div class="card">
+<div class="card-header">
+<h3 class="card-title">Event List</h3>
+<div class="card-tools">
+<form method="POST" action="/event/reset" onsubmit="return confirm('Reset semua event log?')" style="display:inline">
+<button type="submit" class="btn btn-danger btn-sm">Reset Event Log</button>
+</form>
+</div>
+</div>
+
+<div class="card-body table-responsive">
+<table class="table table-bordered table-striped">
+<tr>
+<th>ID</th>
+<th>Type</th>
+<th>Level</th>
+<th>Message</th>
+<th>Time</th>
+</tr>
+
+{% for event in events %}
+<tr>
+<td>{{ event["id"] }}</td>
+<td>{{ event["event_type"] }}</td>
+<td>
+{% if event["level"] == "WARNING" %}
+<span class="badge badge-warning">{{ event["level"] }}</span>
+{% elif event["level"] == "ERROR" %}
+<span class="badge badge-danger">{{ event["level"] }}</span>
+{% else %}
+<span class="badge badge-info">{{ event["level"] }}</span>
+{% endif %}
+</td>
+<td>{{ event["message"] }}</td>
+<td>{{ event["created_at"] }}</td>
+</tr>
+{% endfor %}
+</table>
+</div>
+</div>
+
+{% endblock %}
