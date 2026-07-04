@@ -17,16 +17,25 @@ while true; do
   TMP_FILE="$OUT_DIR/${TS}.tmp.mp4"
   FINAL_FILE="$OUT_DIR/${TS}.mp4"
 
+  rm -f "$TMP_FILE"
+
   ffmpeg \
     -hide_banner \
     -rtsp_transport tcp \
+    -fflags +genpts \
+    -use_wallclock_as_timestamps 1 \
     -i "$RTSP_URL" \
     -t "$SEGMENT_SECONDS" \
     -map 0:v:0 \
     -map 0:a? \
-    -c:v copy \
+    -r 20 \
+    -fps_mode cfr \
+    -c:v libx264 \
+    -preset veryfast \
+    -crf 23 \
     -c:a aac \
-    -b:a 128k \
+    -b:a 48k \
+    -movflags +faststart \
     "$TMP_FILE"
 
   mv "$TMP_FILE" "$FINAL_FILE"

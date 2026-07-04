@@ -2,6 +2,7 @@ services:
   edge-recorder:
     build: .
     container_name: ai-director-edge-recorder
+    user: "1000:1000"
     env_file:
       - .env
     volumes:
