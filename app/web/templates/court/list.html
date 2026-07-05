@@ -18,7 +18,7 @@
 <th>Nama</th>
 <th>Deskripsi</th>
 <th>Status</th>
-<th>UUID</th>
+<th>UUID</th><th>Action</th>
 </tr>
 
 {% for court in courts %}
@@ -27,7 +27,7 @@
 <td>{{ court["name"] }}</td>
 <td>{{ court["description"] }}</td>
 <td><span class="badge badge-success">{{ court["status"] }}</span></td>
-<td style="word-break:break-all">{{ court["uuid"] }}</td>
+<td style="word-break:break-all">{{ court["uuid"] }}</td><td><a href="/court/{{ court['id'] }}" class="btn btn-sm btn-info">Detail</a></td>
 </tr>
 {% endfor %}
 </table>

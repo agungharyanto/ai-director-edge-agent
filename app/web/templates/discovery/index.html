@@ -1,23 +1,12 @@
 {% extends "layout.html" %}
 {% set title = "Discovery - AI Director" %}
-{% set page_title = "Discovery Engine" %}
+{% set page_title = "Live Discovery Engine" %}
 
 {% block content %}
 
-<div id="scan-loading" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.45);z-index:9999">
-<div style="position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);background:white;padding:35px;border-radius:10px;text-align:center;width:360px">
-<i class="fas fa-spinner fa-spin fa-3x text-primary"></i>
-<h4 style="margin-top:20px">Scanning Network...</h4>
-<p>Mohon tunggu, AI Director sedang mencari kamera.</p>
-<div class="progress">
-<div class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%"></div>
-</div>
-</div>
-</div>
-
 <div class="card">
 <div class="card-header">
-<h3 class="card-title">Scan Network</h3>
+<h3 class="card-title">Manual Scan Network</h3>
 </div>
 
 <form method="POST" id="scan-form">
@@ -25,17 +14,39 @@
 <div class="form-group">
 <label>Network CIDR</label>
 <input type="text" name="network" class="form-control" value="{{ network }}" placeholder="Contoh: 192.168.1.0/24">
-<small class="text-muted">Gunakan subnet kecil dulu untuk testing, misal /24 atau /25.</small>
+<small class="text-muted">Manual scan tetap tersedia. Gunakan /24 atau /25 untuk awal testing.</small>
 </div>
 </div>
 
 <div class="card-footer">
 <button type="submit" id="scan-button" class="btn btn-primary">
-<i class="fas fa-search"></i> Scan
+<i class="fas fa-search"></i> Start Live Scan
 </button>
 </div>
 </form>
 </div>
+
+{% if job %}
+<div class="card">
+<div class="card-header">
+<h3 class="card-title">Scan Progress</h3>
+</div>
+
+<div class="card-body">
+<table class="table table-bordered">
+<tr><td>Job ID</td><td id="job-id">{{ job["id"] }}</td></tr>
+<tr><td>Network</td><td id="job-network">{{ job["network"] }}</td></tr>
+<tr><td>Status</td><td><span id="job-status" class="badge badge-info">{{ job["status"] }}</span></td></tr>
+<tr><td>Progress</td><td><span id="job-progress">{{ job["scanned_hosts"] }}</span> / <span id="job-total">{{ job["total_hosts"] }}</span></td></tr>
+<tr><td>Found</td><td><span id="job-found">{{ job["found_hosts"] }}</span> device</td></tr>
+</table>
+
+<div class="progress">
+<div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%">0%</div>
+</div>
+</div>
+</div>
+{% endif %}
 
 <div class="card">
 <div class="card-header">
@@ -44,39 +55,19 @@
 
 <div class="card-body table-responsive">
 <table class="table table-bordered table-striped">
+<thead>
 <tr>
 <th>IP</th>
 <th>Ping</th>
 <th>Open Ports</th>
 <th>Vendor</th>
 <th>Model</th>
+<th>Confidence</th>
 <th>Action</th>
 </tr>
-
-{% for item in results %}
-<tr>
-<td>{{ item["ip_address"] }}</td>
-<td>
-{% if item["ping"] == "UP" %}
-<span class="badge badge-success">UP</span>
-{% else %}
-<span class="badge badge-danger">DOWN</span>
-{% endif %}
-</td>
-<td>{{ item["ports"]|join(", ") }}</td>
-<td>{{ item["vendor"] }}</td>
-<td>{{ item["model"] }}</td>
-<td>
-<form method="POST" action="/discovery/import">
-<input type="hidden" name="ip_address" value="{{ item["ip_address"] }}">
-<input type="hidden" name="ports" value="{{ item["ports"]|join(",") }}">
-<input type="hidden" name="vendor" value="{{ item["vendor"] }}">
-<input type="hidden" name="model" value="{{ item["model"] }}">
-<button type="submit" class="btn btn-sm btn-success">Import</button>
-</form>
-</td>
-</tr>
-{% endfor %}
+</thead>
+<tbody id="result-body">
+</tbody>
 </table>
 </div>
 </div>
@@ -85,13 +76,74 @@
 
 {% block scripts %}
 <script>
-document.getElementById('scan-form').addEventListener('submit', function(){
-    const loading = document.getElementById('scan-loading');
-    const button = document.getElementById('scan-button');
+const jobIdEl = document.getElementById('job-id');
+const jobId = jobIdEl ? jobIdEl.innerText : null;
 
-    loading.style.display = 'block';
+function badgePing(status){
+    if(status === 'UP') return '<span class="badge badge-success">UP</span>';
+    return '<span class="badge badge-danger">DOWN</span>';
+}
+
+function renderResults(results){
+    const body = document.getElementById('result-body');
+    body.innerHTML = '';
+
+    results.forEach(item => {
+        body.innerHTML += `
+        <tr>
+            <td>${item.ip_address}</td>
+            <td>${badgePing(item.ping_status)}</td>
+            <td>${item.open_ports || '-'}</td>
+            <td>${item.vendor}</td>
+            <td>${item.model}</td>
+            <td>${item.confidence}%</td>
+            <td>
+                <form method="POST" action="/discovery/import">
+                    <input type="hidden" name="ip_address" value="${item.ip_address}">
+                    <input type="hidden" name="ports" value="${item.open_ports}">
+                    <input type="hidden" name="vendor" value="${item.vendor}">
+                    <input type="hidden" name="model" value="${item.model}">
+                    <button type="submit" class="btn btn-sm btn-success">Import</button>
+                </form>
+            </td>
+        </tr>`;
+    });
+}
+
+async function pollDiscovery(){
+    if(!jobId) return;
+
+    const response = await fetch(`/api/discovery/${jobId}`);
+    const data = await response.json();
+
+    const job = data.job;
+    const percent = job.total_hosts > 0 ? Math.round((job.scanned_hosts / job.total_hosts) * 100) : 0;
+
+    document.getElementById('job-status').innerText = job.status;
+    document.getElementById('job-progress').innerText = job.scanned_hosts;
+    document.getElementById('job-total').innerText = job.total_hosts;
+    document.getElementById('job-found').innerText = job.found_hosts;
+
+    const bar = document.getElementById('progress-bar');
+    bar.style.width = percent + '%';
+    bar.innerText = percent + '%';
+
+    renderResults(data.results);
+
+    if(job.status !== 'DONE'){
+        setTimeout(pollDiscovery, 1000);
+    }else{
+        document.getElementById('job-status').className = 'badge badge-success';
+        document.getElementById('progress-bar').classList.remove('progress-bar-animated');
+    }
+}
+
+document.getElementById('scan-form').addEventListener('submit', function(){
+    const button = document.getElementById('scan-button');
     button.disabled = true;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scanning...';
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
 });
+
+pollDiscovery();
 </script>
 {% endblock %}

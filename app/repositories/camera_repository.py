@@ -18,6 +18,33 @@ class CameraRepository(BaseRepository):
             """
         )
 
+    def by_court(self, court_uuid):
+        return self.fetchall(
+            """
+            SELECT *
+            FROM camera
+            WHERE court_uuid = ?
+            ORDER BY position, id
+            """,
+            (court_uuid,)
+        )
+
+    def assign_position(self, camera_id, court_uuid, position):
+        self.execute(
+            """
+            UPDATE camera
+            SET court_uuid = ?,
+                position = ?,
+                status = 'ASSIGNED'
+            WHERE id = ?
+            """,
+            (
+                court_uuid,
+                position,
+                camera_id
+            )
+        )
+
     def count(self):
         row = self.fetchone("SELECT COUNT(*) AS total FROM camera")
         return row["total"]

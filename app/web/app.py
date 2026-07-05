@@ -1,6 +1,6 @@
 import uuid
 
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for, jsonify, Response
 
 from app.core.config import Config
 from app.repositories.system_repository import SystemRepository
@@ -11,6 +11,10 @@ from app.repositories.health_repository import HealthRepository
 from app.services.health_service import HealthService
 from app.services.camera_monitor_service import CameraMonitorService
 from app.modules.discovery.discovery_service import DiscoveryService
+from app.repositories.discovery_repository import DiscoveryRepository
+from app.repositories.device_repository import DeviceRepository
+from app.repositories.credential_repository import CredentialRepository
+from app.modules.drivers.hikvision_driver import HikvisionDriver
 
 app = Flask(
     __name__,
@@ -109,6 +113,45 @@ def court():
     return render_template("court/list.html", courts=courts)
 
 
+@app.route("/court/<int:court_id>")
+def court_detail(court_id):
+    court_repo = CourtRepository()
+    camera_repo = CameraRepository()
+
+    court_data = court_repo.find(court_id)
+    cameras = camera_repo.by_court(court_data["uuid"])
+    all_cameras = camera_repo.all()
+
+    return render_template(
+        "court/detail.html",
+        court=court_data,
+        cameras=cameras,
+        all_cameras=all_cameras
+    )
+
+
+@app.route("/court/<int:court_id>/assign-camera", methods=["POST"])
+def court_assign_camera(court_id):
+    court_repo = CourtRepository()
+    camera_repo = CameraRepository()
+
+    court_data = court_repo.find(court_id)
+
+    camera_repo.assign_position(
+        camera_id=request.form.get("camera_id"),
+        court_uuid=court_data["uuid"],
+        position=request.form.get("position")
+    )
+
+    EventRepository().create(
+        "COURT_CAMERA_ASSIGNED",
+        "INFO",
+        f"Camera ID {request.form.get('camera_id')} di-assign ke {court_data['name']} posisi {request.form.get('position')}"
+    )
+
+    return redirect(url_for("court_detail", court_id=court_id))
+
+
 @app.route("/court/create", methods=["GET", "POST"])
 def court_create():
     if request.method == "POST":
@@ -190,6 +233,67 @@ def camera():
     return render_template("camera/list.html", cameras=cameras)
 
 
+@app.route("/camera/<int:camera_id>")
+def camera_detail(camera_id):
+    camera_repo = CameraRepository()
+    camera_data = camera_repo.find(camera_id)
+
+    return render_template(
+        "camera/detail.html",
+        camera=camera_data
+    )
+
+
+@app.route("/camera/<int:camera_id>/snapshot")
+def camera_snapshot(camera_id):
+    camera_repo = CameraRepository()
+    camera_data = camera_repo.find(camera_id)
+
+    # Sementara Sprint 30 v1 pakai credential pertama Hikvision
+    creds = CredentialRepository().active_by_vendor("Hikvision")
+
+    if not creds:
+        return Response("Credential Hikvision belum tersedia", status=401)
+
+    cred = creds[0]
+
+    driver = HikvisionDriver()
+
+    url = driver.snapshot(camera_data["ip_address"])
+
+    import requests
+
+    auth = requests.auth.HTTPDigestAuth(
+        cred["username"],
+        cred["password"]
+    )
+
+    try:
+        r = requests.get(
+            url,
+            auth=auth,
+            timeout=5,
+            verify=False
+        )
+
+        if r.status_code != 200:
+            return Response(
+                f"Snapshot gagal. HTTP {r.status_code}",
+                status=500
+            )
+
+        return Response(
+            r.content,
+            mimetype="image/jpeg"
+        )
+
+    except Exception as error:
+        return Response(
+            f"Snapshot error: {error}",
+            status=500
+        )
+
+
 @app.route("/camera/create", methods=["GET", "POST"])
 def camera_create():
     court_repo = CourtRepository()
@@ -218,6 +322,40 @@ def camera_create():
         return redirect(url_for("camera"))
 
     return render_template("camera/create.html", courts=courts)
+
+
+@app.route("/camera/<int:camera_id>/hide-osd", methods=["POST"])
+def camera_hide_osd(camera_id):
+    camera_repo = CameraRepository()
+    camera_data = camera_repo.find(camera_id)
+
+    creds = CredentialRepository().active_by_vendor("Hikvision")
+    if not creds:
+        EventRepository().create("CAMERA_OSD_FAILED", "WARNING", "Credential Hikvision belum tersedia")
+        return redirect(url_for("camera_detail", camera_id=camera_id))
+
+    cred = creds[0]
+
+    result = HikvisionDriver().hide_osd(
+        camera_data["ip_address"],
+        cred["username"],
+        cred["password"]
+    )
+
+    if result.get("success"):
+        EventRepository().create(
+            "CAMERA_OSD_DISABLED",
+            "INFO",
+            f"OSD dimatikan untuk {camera_data['name']} ({camera_data['ip_address']})"
+        )
+    else:
+        EventRepository().create(
+            "CAMERA_OSD_FAILED",
+            "WARNING",
+            f"Gagal mematikan OSD untuk {camera_data['name']}: {result}"
+        )
+
+    return redirect(url_for("camera_detail", camera_id=camera_id))
 
 
 @app.route("/camera/<int:camera_id>/edit", methods=["GET", "POST"])
@@ -297,17 +435,54 @@ def event_reset():
 
 @app.route("/discovery", methods=["GET", "POST"])
 def discovery():
-    results = []
     network = request.form.get("network", "192.168.1.0/24")
+    job = DiscoveryRepository().latest_job()
 
     if request.method == "POST":
-        results = DiscoveryService().scan_network(network)
+        job_id = DiscoveryService().start_scan(network)
+        return redirect(url_for("discovery", job_id=job_id))
+
+    job_id = request.args.get("job_id")
+
+    if job_id:
+        job = DiscoveryRepository().get_job(job_id)
 
     return render_template(
         "discovery/index.html",
-        results=results,
-        network=network
+        network=network,
+        job=job
     )
+
+
+@app.route("/api/discovery/<int:job_id>")
+def api_discovery_job(job_id):
+    repo = DiscoveryRepository()
+    job = repo.get_job(job_id)
+    results = repo.results(job_id)
+
+    return jsonify({
+        "job": {
+            "id": job["id"],
+            "network": job["network"],
+            "status": job["status"],
+            "total_hosts": job["total_hosts"],
+            "scanned_hosts": job["scanned_hosts"],
+            "found_hosts": job["found_hosts"],
+            "started_at": job["started_at"],
+            "finished_at": job["finished_at"]
+        },
+        "results": [
+            {
+                "ip_address": row["ip_address"],
+                "ping_status": row["ping_status"],
+                "open_ports": row["open_ports"],
+                "vendor": row["vendor"],
+                "model": row["model"],
+                "confidence": row["confidence"]
+            }
+            for row in results
+        ]
+    })
 
 
 @app.route("/discovery/import", methods=["POST"])
@@ -384,6 +559,50 @@ def event():
         selected_message=message or "",
         selected_start_time=start_time or "",
         selected_end_time=end_time or ""
+    )
+
+@app.route("/credential")
+def credential():
+    repo = CredentialRepository()
+    credentials = repo.all()
+
+    return render_template(
+        "credential/list.html",
+        credentials=credentials
+    )
+
+
+@app.route("/credential/create", methods=["GET", "POST"])
+def credential_create():
+    if request.method == "POST":
+        CredentialRepository().create(
+            vendor=request.form.get("vendor"),
+            name=request.form.get("name"),
+            username=request.form.get("username"),
+            password=request.form.get("password"),
+            priority=int(request.form.get("priority") or 100),
+            enabled=1 if request.form.get("enabled") == "on" else 0
+        )
+
+        EventRepository().create(
+            "CREDENTIAL_CREATED",
+            "INFO",
+            f"Credential profile dibuat untuk vendor {request.form.get('vendor')}"
+        )
+
+        return redirect(url_for("credential"))
+
+    return render_template("credential/create.html")
+
+
+@app.route("/inventory")
+def inventory():
+    repo = DeviceRepository()
+    devices = repo.all()
+
+    return render_template(
+        "inventory/index.html",
+        devices=devices
     )
 
 

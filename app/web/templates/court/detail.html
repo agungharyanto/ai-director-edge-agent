@@ -1,0 +1,120 @@
+{% extends "layout.html" %}
+{% set title = "Court Detail - AI Director" %}
+{% set page_title = court["name"] %}
+
+{% block content %}
+
+<div class="row">
+<div class="col-md-4">
+<div class="card">
+<div class="card-header"><h3 class="card-title">Court Info</h3></div>
+<div class="card-body">
+<table class="table table-bordered">
+<tr><td>Name</td><td>{{ court["name"] }}</td></tr>
+<tr><td>Description</td><td>{{ court["description"] }}</td></tr>
+<tr><td>Status</td><td>{{ court["status"] }}</td></tr>
+<tr><td>UUID</td><td style="word-break:break-all">{{ court["uuid"] }}</td></tr>
+</table>
+</div>
+</div>
+
+<div class="card">
+<div class="card-header"><h3 class="card-title">Assign Camera</h3></div>
+<form method="POST" action="/court/{{ court['id'] }}/assign-camera">
+<div class="card-body">
+<div class="form-group">
+<label>Camera</label>
+<select name="camera_id" class="form-control" required>
+{% for camera in all_cameras %}
+<option value="{{ camera['id'] }}">{{ camera["name"] }} - {{ camera["ip_address"] }}</option>
+{% endfor %}
+</select>
+</div>
+
+<div class="form-group">
+<label>Position</label>
+<select name="position" class="form-control" required>
+<option value="BASELINE">BASELINE</option>
+<option value="SIDE_LEFT">SIDE_LEFT</option>
+<option value="SIDE_RIGHT">SIDE_RIGHT</option>
+<option value="OVERHEAD">OVERHEAD</option>
+<option value="AUDIENCE">AUDIENCE</option>
+<option value="OTHER">OTHER</option>
+</select>
+</div>
+</div>
+
+<div class="card-footer">
+<button class="btn btn-primary" type="submit">Assign</button>
+<a href="/court" class="btn btn-secondary">Back</a>
+</div>
+</form>
+</div>
+</div>
+
+<div class="col-md-8">
+<div class="card">
+<div class="card-header"><h3 class="card-title">Court Topology</h3></div>
+<div class="card-body">
+
+<div style="position:relative;width:100%;height:420px;background:#2f8f46;border:8px solid #0d5f28;border-radius:12px;overflow:hidden">
+<div style="position:absolute;left:10%;top:10%;width:80%;height:80%;border:4px solid white"></div>
+<div style="position:absolute;left:10%;top:50%;width:80%;border-top:3px solid white"></div>
+<div style="position:absolute;left:50%;top:10%;height:80%;border-left:3px solid white"></div>
+<div style="position:absolute;left:0;right:0;top:48%;text-align:center;color:white;font-weight:bold;font-size:26px">PADEL COURT</div>
+
+{% for camera in cameras %}
+{% set pos = camera["position"] or "OTHER" %}
+
+{% if pos == "BASELINE" %}
+{% set style = "left:45%;bottom:10px" %}
+{% elif pos == "SIDE_LEFT" %}
+{% set style = "left:10px;top:45%" %}
+{% elif pos == "SIDE_RIGHT" %}
+{% set style = "right:10px;top:45%" %}
+{% elif pos == "OVERHEAD" %}
+{% set style = "left:45%;top:10px" %}
+{% elif pos == "AUDIENCE" %}
+{% set style = "right:20px;bottom:20px" %}
+{% else %}
+{% set style = "left:20px;bottom:20px" %}
+{% endif %}
+
+<div style="position:absolute;{{ style }};background:#111;color:white;padding:10px;border-radius:8px;text-align:center;min-width:110px">
+<i class="fas fa-video"></i><br>
+{{ camera["name"] }}<br>
+<small>{{ pos }}</small>
+</div>
+
+{% endfor %}
+</div>
+
+</div>
+</div>
+
+<div class="card">
+<div class="card-header"><h3 class="card-title">Assigned Cameras</h3></div>
+<div class="card-body table-responsive">
+<table class="table table-bordered table-striped">
+<tr>
+<th>Name</th>
+<th>IP</th>
+<th>Position</th>
+<th>Status</th>
+</tr>
+{% for camera in cameras %}
+<tr>
+<td>{{ camera["name"] }}</td>
+<td>{{ camera["ip_address"] }}</td>
+<td>{{ camera["position"] or "OTHER" }}</td>
+<td>{{ camera["status"] }}</td>
+</tr>
+{% endfor %}
+</table>
+</div>
+</div>
+
+</div>
+</div>
+
+{% endblock %}

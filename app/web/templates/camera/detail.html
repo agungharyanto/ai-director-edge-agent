@@ -1,0 +1,61 @@
+{% extends "layout.html" %}
+{% set title = "Camera Detail - AI Director" %}
+{% set page_title = camera["name"] %}
+
+{% block content %}
+
+<div class="row">
+<div class="col-md-4">
+<div class="card">
+<div class="card-header"><h3 class="card-title">Camera Info</h3></div>
+<div class="card-body">
+<table class="table table-bordered">
+<tr><td>Name</td><td>{{ camera["name"] }}</td></tr>
+<tr><td>IP</td><td>{{ camera["ip_address"] }}</td></tr>
+<tr><td>Vendor</td><td>{{ camera["vendor"] }}</td></tr>
+<tr><td>Model</td><td>{{ camera["model"] }}</td></tr>
+<tr><td>Status</td><td>{{ camera["status"] }}</td></tr>
+<tr><td>Ping</td><td>{{ camera["ping_status"] }}</td></tr>
+<tr><td>Latency</td><td>{{ camera["ping_latency_ms"] or "-" }} ms</td></tr>
+<tr><td>RTSP</td><td style="word-break:break-all">{{ camera["rtsp_url"] or "-" }}</td></tr>
+</table>
+
+<a href="/camera" class="btn btn-secondary">Back</a>
+<a href="/camera/{{ camera['id'] }}/edit" class="btn btn-info">Edit</a>
+
+<form method="POST" action="/camera/{{ camera['id'] }}/hide-osd" style="display:inline">
+<button class="btn btn-warning" onclick="return confirm('Matikan tanggal dan nama kamera di tampilan kamera?')">
+Hide OSD
+</button>
+</form>
+</div>
+</div>
+</div>
+
+<div class="col-md-8">
+<div class="card">
+<div class="card-header">
+<h3 class="card-title">Snapshot</h3>
+<div class="card-tools">
+<button onclick="refreshSnapshot()" class="btn btn-primary btn-sm">Refresh Snapshot</button>
+</div>
+</div>
+<div class="card-body text-center">
+<img id="snapshot-image" src="/camera/{{ camera['id'] }}/snapshot?ts={{ range(1,999999)|random }}" style="max-width:100%;border:1px solid #ddd;border-radius:8px">
+</div>
+</div>
+</div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function refreshSnapshot(){
+    const img = document.getElementById('snapshot-image');
+    img.src = "/camera/{{ camera['id'] }}/snapshot?ts=" + new Date().getTime();
+}
+
+setInterval(refreshSnapshot, 5000);
+</script>
+{% endblock %}

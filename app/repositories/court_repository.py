@@ -14,6 +14,16 @@ class CourtRepository(BaseRepository):
             """
         )
 
+    def find(self, court_id):
+        return self.fetchone(
+            """
+            SELECT *
+            FROM court
+            WHERE id = ?
+            """,
+            (court_id,)
+        )
+
     def count(self):
         row = self.fetchone("SELECT COUNT(*) AS total FROM court")
         return row["total"]

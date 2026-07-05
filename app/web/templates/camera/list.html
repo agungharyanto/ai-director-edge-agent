@@ -46,7 +46,9 @@
 <td><span id="ping-latency-{{ camera['id'] }}">{{ camera["ping_latency_ms"] or "-" }}</span> ms</td>
 <td><span id="last-ping-{{ camera['id'] }}">{{ camera["last_ping_at"] or "-" }}</span></td>
 <td>
+<a href="/camera/{{ camera['id'] }}" class="btn btn-sm btn-success">Detail</a>
 <a href="/camera/{{ camera['id'] }}/edit" class="btn btn-sm btn-info">Edit</a>
+
 <form method="POST" action="/camera/{{ camera['id'] }}/delete" style="display:inline">
 <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Hapus camera ini?')">Delete</button>
 </form>
@@ -71,7 +73,6 @@ async function refreshCameraPing(){
             const lastPingEl = document.getElementById('last-ping-' + camera.id);
 
             statusEl.innerText = camera.ping_status;
-
             statusEl.className = 'badge';
 
             if(camera.ping_status === 'UP'){

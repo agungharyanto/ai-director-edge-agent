@@ -1,0 +1,64 @@
+{% extends "layout.html" %}
+
+{% set title="Device Inventory" %}
+{% set page_title="Device Inventory" %}
+
+{% block content %}
+
+<div class="card">
+<div class="card-header">
+<h3 class="card-title">Device Inventory</h3>
+</div>
+
+<div class="card-body table-responsive">
+<table class="table table-bordered table-striped">
+<tr>
+<th>ID</th>
+<th>IP</th>
+<th>MAC</th>
+<th>Hostname</th>
+<th>Vendor</th>
+<th>Model</th>
+<th>Type</th>
+<th>Status</th>
+<th>Online</th>
+<th>Adopted</th>
+<th>First Seen</th>
+<th>Last Seen</th>
+</tr>
+
+{% for device in devices %}
+<tr>
+<td>{{ device["id"] }}</td>
+<td>{{ device["ip_address"] }}</td>
+<td>{{ device["mac_address"] or "-" }}</td>
+<td>{{ device["hostname"] or "-" }}</td>
+<td>{{ device["vendor"] }}</td>
+<td>{{ device["model"] }}</td>
+<td><span class="badge badge-info">{{ device["device_type"] }}</span></td>
+<td>{{ device["status"] }}</td>
+<td>
+{% if device["online_status"] == "UP" %}
+<span class="badge badge-success">UP</span>
+{% elif device["online_status"] == "DOWN" %}
+<span class="badge badge-danger">DOWN</span>
+{% else %}
+<span class="badge badge-secondary">{{ device["online_status"] }}</span>
+{% endif %}
+</td>
+<td>
+{% if device["adopted"] == 1 %}
+<span class="badge badge-success">YES</span>
+{% else %}
+<span class="badge badge-secondary">NO</span>
+{% endif %}
+</td>
+<td>{{ device["first_seen"] }}</td>
+<td>{{ device["last_seen"] }}</td>
+</tr>
+{% endfor %}
+</table>
+</div>
+</div>
+
+{% endblock %}

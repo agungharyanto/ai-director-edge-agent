@@ -20,3 +20,10 @@ class Config:
     )
 
     SECRET_KEY = os.getenv("SECRET_KEY")
+
+
+    HIKVISION_USERNAME = os.getenv("HIKVISION_USERNAME")
+    HIKVISION_PASSWORD = os.getenv("HIKVISION_PASSWORD")
+
+
+    MASTER_KEY = os.getenv("MASTER_KEY")
