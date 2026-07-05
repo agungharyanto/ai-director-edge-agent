@@ -7,6 +7,9 @@
 <div class="card-header">
 <h3 class="card-title">Camera List</h3>
 <div class="card-tools">
+<form method="POST" action="/camera/provision-all" style="display:inline" onsubmit="return confirm('Provision semua kamera Hikvision?')">
+<button type="submit" class="btn btn-success btn-sm">Provision All</button>
+</form>
 <button onclick="refreshCameraPing()" class="btn btn-warning btn-sm">Refresh Ping</button>
 <a href="/camera/bulk-rtsp" class="btn btn-warning btn-sm">Bulk RTSP</a>
 <a href="/camera/create" class="btn btn-primary btn-sm">+ Tambah Camera</a>
@@ -24,8 +27,7 @@
 <th>Model</th>
 <th>Status</th>
 <th>Ping</th>
-<th>Latency</th>
-<th>Last Ping</th>
+<th>AI Ready</th>
 <th>Action</th>
 </tr>
 
@@ -38,13 +40,25 @@
 <td>{{ camera["vendor"] }}</td>
 <td>{{ camera["model"] }}</td>
 <td><span class="badge badge-info">{{ camera["status"] }}</span></td>
+
 <td>
 <span id="ping-status-{{ camera['id'] }}" class="badge {% if camera['ping_status'] == 'UP' %}badge-success{% elif camera['ping_status'] == 'DOWN' %}badge-danger{% else %}badge-secondary{% endif %}">
 {{ camera["ping_status"] or "UNKNOWN" }}
 </span>
 </td>
-<td><span id="ping-latency-{{ camera['id'] }}">{{ camera["ping_latency_ms"] or "-" }}</span> ms</td>
-<td><span id="last-ping-{{ camera['id'] }}">{{ camera["last_ping_at"] or "-" }}</span></td>
+
+<td>
+{% if camera["provision_status"] == "AI_READY" %}
+<span class="badge badge-success">AI READY</span>
+{% elif camera["provision_status"] == "FAILED" %}
+<span class="badge badge-danger">FAILED</span>
+{% elif camera["provision_status"] == "AUTH_REQUIRED" %}
+<span class="badge badge-warning">AUTH REQUIRED</span>
+{% else %}
+<span class="badge badge-secondary">{{ camera["provision_status"] or "UNKNOWN" }}</span>
+{% endif %}
+</td>
+
 <td>
 <a href="/camera/{{ camera['id'] }}" class="btn btn-sm btn-success">Detail</a>
 <a href="/camera/{{ camera['id'] }}/edit" class="btn btn-sm btn-info">Edit</a>
@@ -69,8 +83,8 @@ async function refreshCameraPing(){
 
         data.cameras.forEach(camera => {
             const statusEl = document.getElementById('ping-status-' + camera.id);
-            const latencyEl = document.getElementById('ping-latency-' + camera.id);
-            const lastPingEl = document.getElementById('last-ping-' + camera.id);
+
+            if(!statusEl) return;
 
             statusEl.innerText = camera.ping_status;
             statusEl.className = 'badge';
@@ -82,9 +96,6 @@ async function refreshCameraPing(){
             }else{
                 statusEl.classList.add('badge-secondary');
             }
-
-            latencyEl.innerText = camera.ping_latency_ms ?? '-';
-            lastPingEl.innerText = new Date().toLocaleString();
         });
     }catch(error){
         console.error('Gagal refresh ping camera:', error);

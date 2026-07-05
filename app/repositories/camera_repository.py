@@ -18,6 +18,15 @@ class CameraRepository(BaseRepository):
             """
         )
 
+    def find(self, camera_id):
+        return self.fetchone("SELECT * FROM camera WHERE id = ?", (camera_id,))
+
+    def find_by_ip(self, ip_address):
+        return self.fetchone(
+            "SELECT * FROM camera WHERE ip_address = ? LIMIT 1",
+            (ip_address,)
+        )
+
     def by_court(self, court_uuid):
         return self.fetchall(
             """
@@ -29,58 +38,23 @@ class CameraRepository(BaseRepository):
             (court_uuid,)
         )
 
-    def assign_position(self, camera_id, court_uuid, position):
-        self.execute(
-            """
-            UPDATE camera
-            SET court_uuid = ?,
-                position = ?,
-                status = 'ASSIGNED'
-            WHERE id = ?
-            """,
-            (
-                court_uuid,
-                position,
-                camera_id
-            )
-        )
-
     def count(self):
         row = self.fetchone("SELECT COUNT(*) AS total FROM camera")
         return row["total"]
 
     def count_by_status(self, status):
         row = self.fetchone(
-            """
-            SELECT COUNT(*) AS total
-            FROM camera
-            WHERE status = ?
-            """,
+            "SELECT COUNT(*) AS total FROM camera WHERE status = ?",
             (status,)
         )
         return row["total"]
 
-
     def count_by_ping_status(self, ping_status):
         row = self.fetchone(
-            """
-            SELECT COUNT(*) AS total
-            FROM camera
-            WHERE ping_status = ?
-            """,
+            "SELECT COUNT(*) AS total FROM camera WHERE ping_status = ?",
             (ping_status,)
         )
         return row["total"]
-
-    def find(self, camera_id):
-        return self.fetchone(
-            """
-            SELECT *
-            FROM camera
-            WHERE id = ?
-            """,
-            (camera_id,)
-        )
 
     def create(self, name, ip_address, rtsp_url, vendor, model, court_uuid=None):
         camera_uuid = str(uuid.uuid4())
@@ -97,11 +71,12 @@ class CameraRepository(BaseRepository):
                 vendor,
                 model,
                 status,
-                ping_status
+                ping_status,
+                provision_status
             )
             VALUES
             (
-                ?,?,?,?,?,?,?,?,?
+                ?,?,?,?,?,?,?,?,?,?
             )
             """,
             (
@@ -113,6 +88,7 @@ class CameraRepository(BaseRepository):
                 vendor,
                 model,
                 "ASSIGNED" if court_uuid else "NEW",
+                "UNKNOWN",
                 "UNKNOWN"
             )
         )
@@ -123,8 +99,7 @@ class CameraRepository(BaseRepository):
         self.execute(
             """
             UPDATE camera
-            SET
-                name = ?,
+            SET name = ?,
                 ip_address = ?,
                 rtsp_url = ?,
                 vendor = ?,
@@ -149,10 +124,9 @@ class CameraRepository(BaseRepository):
         self.execute(
             """
             UPDATE camera
-            SET
-                ping_status = ?,
+            SET ping_status = ?,
                 ping_latency_ms = ?,
-                last_ping_at = datetime('now', 'localtime')
+                last_ping_at = datetime('now','localtime')
             WHERE id = ?
             """,
             (
@@ -162,11 +136,40 @@ class CameraRepository(BaseRepository):
             )
         )
 
-    def delete(self, camera_id):
+    def assign_position(self, camera_id, court_uuid, position):
         self.execute(
             """
-            DELETE FROM camera
+            UPDATE camera
+            SET court_uuid = ?,
+                position = ?,
+                status = 'ASSIGNED'
             WHERE id = ?
             """,
+            (
+                court_uuid,
+                position,
+                camera_id
+            )
+        )
+
+    def set_provision_status(self, camera_id, status, message=""):
+        self.execute(
+            """
+            UPDATE camera
+            SET provision_status = ?,
+                provision_message = ?,
+                provisioned_at = datetime('now','localtime')
+            WHERE id = ?
+            """,
+            (
+                status,
+                message,
+                camera_id
+            )
+        )
+
+    def delete(self, camera_id):
+        self.execute(
+            "DELETE FROM camera WHERE id = ?",
             (camera_id,)
         )

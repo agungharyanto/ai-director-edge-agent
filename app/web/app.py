@@ -1,6 +1,7 @@
 import uuid
 
 from flask import Flask, render_template, request, redirect, url_for, jsonify, Response
+from app.modules.provisioning.profile_engine import ProfileEngine
 
 from app.core.config import Config
 from app.repositories.system_repository import SystemRepository
@@ -171,6 +172,81 @@ def court_create():
         return redirect(url_for("court"))
 
     return render_template("court/create.html")
+
+
+@app.route("/camera/provision-all", methods=["POST"])
+def camera_provision_all():
+    camera_repo = CameraRepository()
+    cameras = camera_repo.all()
+
+    total = 0
+    success = 0
+    failed = 0
+
+    for camera in cameras:
+        vendor = camera["vendor"]
+
+        if vendor != "Hikvision":
+            continue
+
+        total += 1
+
+        creds = CredentialRepository().active_by_vendor("Hikvision")
+
+        if not creds:
+            camera_repo.set_provision_status(
+                camera["id"],
+                "AUTH_REQUIRED",
+                "Credential Hikvision belum tersedia"
+            )
+            failed += 1
+            continue
+
+        cred = creds[0]
+        driver = HikvisionDriver()
+
+        profile_result = ProfileEngine().provision(
+            vendor=vendor,
+            driver=driver,
+            ip=camera["ip_address"],
+            username=cred["username"],
+            password=cred["password"]
+        )
+
+        rtsp_url = profile_result.get("rtsp_url", camera["rtsp_url"])
+
+        camera_repo.update(
+            camera_id=camera["id"],
+            name=camera["name"],
+            ip_address=camera["ip_address"],
+            rtsp_url=rtsp_url,
+            vendor=camera["vendor"],
+            model=camera["model"],
+            court_uuid=camera["court_uuid"]
+        )
+
+        if profile_result.get("success"):
+            camera_repo.set_provision_status(
+                camera["id"],
+                "AI_READY",
+                str(profile_result)
+            )
+            success += 1
+        else:
+            camera_repo.set_provision_status(
+                camera["id"],
+                "FAILED",
+                str(profile_result)
+            )
+            failed += 1
+
+    EventRepository().create(
+        "CAMERA_PROVISION_ALL",
+        "INFO" if failed == 0 else "WARNING",
+        f"Provision All selesai. Total={total}, Success={success}, Failed={failed}"
+    )
+
+    return redirect(url_for("camera"))
 
 
 @app.route("/camera/bulk-rtsp", methods=["GET", "POST"])
@@ -493,17 +569,43 @@ def discovery_import():
     model = request.form.get("model", "-")
 
     rtsp_url = ""
+    provision_status = "UNKNOWN"
+    provision_message = ""
 
-    if "554" in ports:
+    if vendor == "Hikvision":
+        creds = CredentialRepository().active_by_vendor("Hikvision")
+
+        if creds:
+            cred = creds[0]
+            driver = HikvisionDriver()
+
+            profile_result = ProfileEngine().provision(
+                vendor=vendor,
+                driver=driver,
+                ip=ip_address,
+                username=cred["username"],
+                password=cred["password"]
+            )
+
+            rtsp_url = profile_result.get("rtsp_url", "")
+            provision_status = "AI_READY" if profile_result.get("success") else "FAILED"
+            provision_message = str(profile_result)
+
+            EventRepository().create(
+                "CAMERA_PROFILE_APPLIED" if provision_status == "AI_READY" else "CAMERA_PROFILE_FAILED",
+                "INFO" if provision_status == "AI_READY" else "WARNING",
+                f"Profile AI Director untuk {ip_address}: {profile_result}"
+            )
+
+        else:
+            provision_status = "AUTH_REQUIRED"
+            provision_message = "Credential Hikvision belum tersedia"
+
+    if not rtsp_url and "554" in ports:
         rtsp_url = f"rtsp://username:password@{ip_address}:554/Streaming/Channels/101"
 
     camera_repo = CameraRepository()
-
-    existing = None
-    for camera in camera_repo.all():
-        if camera["ip_address"] == ip_address:
-            existing = camera
-            break
+    existing = camera_repo.find_by_ip(ip_address)
 
     if existing is None:
         camera_repo.create(
@@ -515,10 +617,26 @@ def discovery_import():
             court_uuid=None
         )
 
+        camera_data = camera_repo.find_by_ip(ip_address)
+
+        if camera_data:
+            camera_repo.set_provision_status(
+                camera_data["id"],
+                provision_status,
+                provision_message
+            )
+
         EventRepository().create(
             "CAMERA_IMPORTED",
             "INFO",
             f"Camera hasil discovery diimport: {ip_address}"
+        )
+
+    else:
+        camera_repo.set_provision_status(
+            existing["id"],
+            provision_status,
+            provision_message
         )
 
     return redirect(url_for("camera"))
