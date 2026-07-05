@@ -2,6 +2,11 @@ import uuid
 
 from flask import Flask, render_template, request, redirect, url_for, jsonify, Response
 from app.modules.provisioning.profile_engine import ProfileEngine
+from app.modules.provisioning.verify_engine import VerifyEngine
+from app.modules.overlay.overlay_engine import OverlayEngine
+from flask import Response
+
+from app.modules.streaming.mjpeg_stream import MJPEGStream
 
 from app.core.config import Config
 from app.repositories.system_repository import SystemRepository
@@ -64,6 +69,36 @@ def dashboard():
         health=health
     )
 
+@app.route("/camera/<int:camera_id>/verify", methods=["POST"])
+def verify_camera(camera_id):
+    camera_repo = CameraRepository()
+    camera = camera_repo.find(camera_id)
+
+    verify = VerifyEngine().verify(camera)
+
+    if verify["overall"]:
+        camera_repo.set_provision_status(
+            camera_id,
+            "AI_READY",
+            str(verify)
+        )
+    else:
+        camera_repo.set_provision_status(
+            camera_id,
+            "FAILED",
+            str(verify)
+        )
+
+    EventRepository().create(
+        "CAMERA_VERIFY",
+        "INFO" if verify["overall"] else "WARNING",
+        str(verify)
+    )
+
+    return redirect(url_for(
+        "camera_detail",
+        camera_id=camera_id
+    ))
 
 @app.route("/health/collect")
 def health_collect():
@@ -78,6 +113,23 @@ def api_camera_ping():
     return jsonify({
         "cameras": results
     })
+
+@app.route("/camera/<int:camera_id>/live")
+def camera_live(camera_id):
+
+    repo = CameraRepository()
+
+    camera = repo.find(camera_id)
+
+    if camera is None:
+        return "Camera not found",404
+
+    stream = MJPEGStream(camera["rtsp_url"])
+
+    return Response(
+        stream.generate(),
+        mimetype="multipart/x-mixed-replace; boundary=frame"
+    )
 
 
 @app.route("/api/health")
@@ -314,9 +366,14 @@ def camera_detail(camera_id):
     camera_repo = CameraRepository()
     camera_data = camera_repo.find(camera_id)
 
+    snapshot_url = f"/camera/{camera_id}/snapshot?ts=init"
+    overlay = OverlayEngine.build(camera_data)
+
     return render_template(
         "camera/detail.html",
-        camera=camera_data
+        camera=camera_data,
+        snapshot_url=snapshot_url,
+        overlay=overlay
     )
 
 
@@ -430,6 +487,33 @@ def camera_hide_osd(camera_id):
             "WARNING",
             f"Gagal mematikan OSD untuk {camera_data['name']}: {result}"
         )
+
+    return redirect(url_for("camera_detail", camera_id=camera_id))
+
+
+@app.route("/camera/<int:camera_id>/show-osd", methods=["POST"])
+def camera_show_osd(camera_id):
+    camera_repo = CameraRepository()
+    camera_data = camera_repo.find(camera_id)
+
+    creds = CredentialRepository().active_by_vendor("Hikvision")
+    if not creds:
+        EventRepository().create("CAMERA_OSD_SHOW_FAILED", "WARNING", "Credential Hikvision belum tersedia")
+        return redirect(url_for("camera_detail", camera_id=camera_id))
+
+    cred = creds[0]
+
+    result = HikvisionDriver().show_osd(
+        camera_data["ip_address"],
+        cred["username"],
+        cred["password"]
+    )
+
+    EventRepository().create(
+        "CAMERA_OSD_SHOW" if result.get("success") else "CAMERA_OSD_SHOW_FAILED",
+        "INFO" if result.get("success") else "WARNING",
+        f"Show OSD untuk {camera_data['name']}: {result}"
+    )
 
     return redirect(url_for("camera_detail", camera_id=camera_id))
 
@@ -609,7 +693,7 @@ def discovery_import():
 
     if existing is None:
         camera_repo.create(
-            name=f"Camera {ip_address}",
+            name=f"{vendor} {model}" if model and model != "-" else f"Camera {ip_address}",
             ip_address=ip_address,
             rtsp_url=rtsp_url,
             vendor=vendor,

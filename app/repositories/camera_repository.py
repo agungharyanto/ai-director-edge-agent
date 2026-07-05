@@ -173,3 +173,23 @@ class CameraRepository(BaseRepository):
             "DELETE FROM camera WHERE id = ?",
             (camera_id,)
         )
+
+def update_ai_ready(self, camera_id, ready):
+
+    conn = self.connect()
+
+    conn.execute(
+        """
+        UPDATE camera
+        SET ai_ready=?
+        WHERE id=?
+        """,
+        (
+            1 if ready else 0,
+            camera_id
+        )
+    )
+
+    conn.commit()
+
+    conn.close()

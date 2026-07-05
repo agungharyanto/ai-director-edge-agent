@@ -9,6 +9,7 @@
 <div class="card">
 <div class="card-header"><h3 class="card-title">Camera Info</h3></div>
 <div class="card-body">
+
 <table class="table table-bordered">
 <tr><td>Name</td><td>{{ camera["name"] }}</td></tr>
 <tr><td>IP</td><td>{{ camera["ip_address"] }}</td></tr>
@@ -17,17 +18,36 @@
 <tr><td>Status</td><td>{{ camera["status"] }}</td></tr>
 <tr><td>Ping</td><td>{{ camera["ping_status"] }}</td></tr>
 <tr><td>Latency</td><td>{{ camera["ping_latency_ms"] or "-" }} ms</td></tr>
+
+<tr>
+<td>AI Ready</td>
+<td>
+{% if camera["provision_status"] == "AI_READY" %}
+<span class="badge badge-success">AI READY</span>
+{% elif camera["provision_status"] == "FAILED" %}
+<span class="badge badge-danger">FAILED</span>
+{% elif camera["provision_status"] == "AUTH_REQUIRED" %}
+<span class="badge badge-warning">AUTH REQUIRED</span>
+{% else %}
+<span class="badge badge-secondary">{{ camera["provision_status"] or "UNKNOWN" }}</span>
+{% endif %}
+</td>
+</tr>
+
 <tr><td>RTSP</td><td style="word-break:break-all">{{ camera["rtsp_url"] or "-" }}</td></tr>
 </table>
 
 <a href="/camera" class="btn btn-secondary">Back</a>
 <a href="/camera/{{ camera['id'] }}/edit" class="btn btn-info">Edit</a>
 
-<form method="POST" action="/camera/{{ camera['id'] }}/hide-osd" style="display:inline">
-<button class="btn btn-warning" onclick="return confirm('Matikan tanggal dan nama kamera di tampilan kamera?')">
-Hide OSD
-</button>
+<form method="POST" action="/camera/{{ camera['id'] }}/verify" style="display:inline">
+<button class="btn btn-success">Verify AI</button>
 </form>
+
+<form method="POST" action="/camera/{{ camera['id'] }}/hide-osd" style="display:inline">
+<button class="btn btn-warning" onclick="return confirm('Matikan OSD dan reboot kamera?')">Hide OSD</button>
+</form>
+
 </div>
 </div>
 </div>
@@ -35,14 +55,78 @@ Hide OSD
 <div class="col-md-8">
 <div class="card">
 <div class="card-header">
-<h3 class="card-title">Snapshot</h3>
+<h3 class="card-title">Snapshot + Virtual Overlay</h3>
 <div class="card-tools">
 <button onclick="refreshSnapshot()" class="btn btn-primary btn-sm">Refresh Snapshot</button>
 </div>
 </div>
-<div class="card-body text-center">
-<img id="snapshot-image" src="/camera/{{ camera['id'] }}/snapshot?ts={{ range(1,999999)|random }}" style="max-width:100%;border:1px solid #ddd;border-radius:8px">
+
+<div class="card-body">
+<div style="position:relative;display:inline-block;width:100%;">
+
+<img
+class="img-fluid rounded"
+src="{{ url_for('camera_live',camera_id=camera['id']) }}"
+>
+
+<div
+style="
+position:absolute;
+top:12px;
+left:12px;
+background:rgba(0,0,0,.60);
+color:white;
+padding:10px 14px;
+font-size:13px;
+border-radius:6px;
+line-height:20px;
+min-width:260px;
+text-align:left;
+">
+
+<b>{{ overlay.court }}</b><br>
+Camera : {{ overlay.camera }}<br>
+Vendor : {{ overlay.vendor }}<br>
+Model : {{ overlay.model }}<br>
+AI : {{ overlay.status }}<br>
+Time : <span id="overlayClock">{{ overlay.time }}</span>
+
 </div>
+
+</div>
+</div>
+
+<div class="card-footer text-center">
+
+{% if camera["provision_status"]=="AI_READY" %}
+
+<span class="badge badge-success">
+AI READY
+</span>
+
+{% elif camera["provision_status"]=="FAILED" %}
+
+<span class="badge badge-danger">
+FAILED
+</span>
+
+{% else %}
+
+<span class="badge badge-warning">
+{{ camera["provision_status"] }}
+</span>
+
+{% endif %}
+
+{% if camera["provisioned_at"] %}
+<br><small class="text-muted">
+Provisioned :
+{{ camera["provisioned_at"] }}
+</small>
+{% endif %}
+
+</div>
+
 </div>
 </div>
 </div>
@@ -51,11 +135,31 @@ Hide OSD
 
 {% block scripts %}
 <script>
+function pad(x){
+    return String(x).padStart(2,"0");
+}
+
+function updateOverlayClock(){
+    let d = new Date();
+    let el = document.getElementById("overlayClock");
+
+    if(!el) return;
+
+    el.innerHTML =
+        pad(d.getDate()) + "-" +
+        pad(d.getMonth()+1) + "-" +
+        d.getFullYear() + " " +
+        pad(d.getHours()) + ":" +
+        pad(d.getMinutes()) + ":" +
+        pad(d.getSeconds());
+}
+
 function refreshSnapshot(){
     const img = document.getElementById('snapshot-image');
     img.src = "/camera/{{ camera['id'] }}/snapshot?ts=" + new Date().getTime();
 }
 
+setInterval(updateOverlayClock, 1000);
 setInterval(refreshSnapshot, 5000);
 </script>
 {% endblock %}

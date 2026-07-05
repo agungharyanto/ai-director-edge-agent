@@ -8,42 +8,32 @@ class HikvisionProfile:
 
         osd_result = driver.hide_osd(ip, username, password)
         steps.append({
-            "step": "Hide OSD",
+            "step": "Hide OSD + Reboot",
             "success": osd_result.get("success", False),
             "result": osd_result
         })
 
-        snapshot_ok = False
-
-        try:
-            snapshot_url = driver.snapshot(ip, username, password)
-
-            response = requests.get(
-                snapshot_url,
-                auth=requests.auth.HTTPDigestAuth(username, password),
-                timeout=5,
-                verify=False
-            )
-
-            snapshot_ok = response.status_code == 200 and len(response.content) > 1000
-
-        except Exception:
-            snapshot_ok = False
-
+        timezone_result = driver.set_timezone(
+            ip,
+            username,
+            password,
+            timezone="CST-7:00:00"
+        )
         steps.append({
-            "step": "Verify Snapshot",
-            "success": snapshot_ok
+            "step": "Set Timezone Asia/Jakarta",
+            "success": timezone_result.get("success", False),
+            "result": timezone_result
         })
 
         rtsp_url = driver.rtsp(ip, username, password)
-
         steps.append({
             "step": "Generate RTSP",
             "success": bool(rtsp_url)
         })
 
         return {
-            "success": all(step["success"] for step in steps),
+            "success": steps[0]["success"] and bool(rtsp_url),
             "steps": steps,
-            "rtsp_url": rtsp_url
+            "rtsp_url": rtsp_url,
+            "note": "Camera reboot otomatis. Status AI READY valid setelah kamera hidup lagi 60-120 detik."
         }

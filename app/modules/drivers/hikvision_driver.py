@@ -1,13 +1,20 @@
+import time
 import requests
 import urllib3
 import xml.etree.ElementTree as ET
 
 from app.modules.drivers.base_driver import BaseDriver
+from app.modules.xml.xml_config_engine import XMLConfigEngine
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class HikvisionDriver(BaseDriver):
+
+    def _auth(self, username=None, password=None):
+        if username and password:
+            return requests.auth.HTTPDigestAuth(username, password)
+        return None
 
     def probe(self, ip, username=None, password=None):
         return self.device_info(ip, username, password)
@@ -18,20 +25,13 @@ class HikvisionDriver(BaseDriver):
             f"https://{ip}/ISAPI/System/deviceInfo"
         ]
 
-        auth = None
-        if username and password:
-            auth = requests.auth.HTTPDigestAuth(username, password)
+        auth = self._auth(username, password)
 
         for url in urls:
             try:
-                response = requests.get(
-                    url,
-                    timeout=3,
-                    verify=False,
-                    auth=auth
-                )
+                r = requests.get(url, timeout=3, verify=False, auth=auth)
 
-                if response.status_code == 401:
+                if r.status_code == 401:
                     return {
                         "vendor": "Hikvision",
                         "success": False,
@@ -40,10 +40,10 @@ class HikvisionDriver(BaseDriver):
                         "message": "Hikvision terdeteksi, tapi butuh username/password"
                     }
 
-                if response.status_code != 200:
+                if r.status_code != 200:
                     continue
 
-                root = ET.fromstring(response.text)
+                root = ET.fromstring(r.text)
                 data = {}
 
                 for item in root:
@@ -84,7 +84,6 @@ class HikvisionDriver(BaseDriver):
     def rtsp(self, ip, username=None, password=None):
         if username and password:
             return f"rtsp://{username}:{password}@{ip}:554/Streaming/Channels/101"
-
         return f"rtsp://{ip}:554/Streaming/Channels/101"
 
     def health(self, ip, username=None, password=None):
@@ -93,63 +92,114 @@ class HikvisionDriver(BaseDriver):
     def configure(self, ip, username=None, password=None):
         return False
 
-    def hide_osd(self, ip, username=None, password=None):
-        auth = None
-        if username and password:
-            auth = requests.auth.HTTPDigestAuth(username, password)
+    def _osd_urls(self, ip):
+        return [
+            f"http://{ip}/ISAPI/System/Video/inputs/channels/1/overlays",
+            f"http://{ip}/ISAPI/System/Video/inputs/channels/101/overlays",
+            f"http://{ip}/ISAPI/System/Video/inputs/channels/102/overlays",
+        ]
 
-        url = f"http://{ip}/ISAPI/System/Video/inputs/channels/1/overlays"
+    def _apply_osd(self, ip, username, password, enabled, name_value=None):
+        auth = self._auth(username, password)
+        xml = XMLConfigEngine(auth)
 
-        xml = """<?xml version="1.0" encoding="UTF-8"?>
-<VideoOverlay version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
-<normalizedScreenSize>
-<normalizedScreenWidth>704</normalizedScreenWidth>
-<normalizedScreenHeight>576</normalizedScreenHeight>
-</normalizedScreenSize>
-<attribute>
-<transparent>false</transparent>
-<flashing>false</flashing>
-</attribute>
-<fontSize>adaptive</fontSize>
-<TextOverlayList size="4">
-</TextOverlayList>
-<DateTimeOverlay>
-<enabled>false</enabled>
-<positionX>0</positionX>
-<positionY>544</positionY>
-<dateStyle>MM-DD-YYYY</dateStyle>
-<timeStyle>24hour</timeStyle>
-<displayWeek>false</displayWeek>
-</DateTimeOverlay>
-<channelNameOverlay version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
-<enabled>false</enabled>
-<positionX>512</positionX>
-<positionY>64</positionY>
-<name></name>
-</channelNameOverlay>
-<frontColorMode>auto</frontColorMode>
-<frontColor>000000</frontColor>
-<alignment>customize</alignment>
-<boundary>1</boundary>
-<upDownboundary>0</upDownboundary>
-<leftRightboundary>0</leftRightboundary>
-</VideoOverlay>
-"""
+        results = []
+
+        for url in self._osd_urls(ip):
+            current = xml.get_text(url)
+
+            if not current.get("success"):
+                results.append({
+                    "url": url,
+                    "success": False,
+                    "stage": "GET",
+                    "status_code": current.get("status_code"),
+                    "message": current.get("error", "GET gagal")
+                })
+                continue
+
+            xml_text = current["text"]
+
+            xml_text = xml.set_tag_value_inside_block(
+                xml_text,
+                "DateTimeOverlay",
+                "enabled",
+                "true" if enabled else "false"
+            )
+
+            xml_text = xml.set_tag_value_inside_block(
+                xml_text,
+                "DateTimeOverlay",
+                "displayWeek",
+                "true" if enabled else "false"
+            )
+
+            xml_text = xml.set_tag_value_inside_block(
+                xml_text,
+                "channelNameOverlay",
+                "enabled",
+                "true" if enabled else "false"
+            )
+
+            if name_value is not None:
+                xml_text = xml.set_tag_value_inside_block(
+                    xml_text,
+                    "channelNameOverlay",
+                    "name",
+                    name_value
+                )
+
+            put_result = xml.put_text(url, xml_text)
+
+            verify = xml.get_text(url)
+            verify_text = verify.get("text", "")
+
+            results.append({
+                "url": url,
+                "success": put_result.get("success", False),
+                "stage": "PUT",
+                "status_code": put_result.get("status_code"),
+                "date_enabled": xml.get_tag_value_inside_block(
+                    verify_text,
+                    "DateTimeOverlay",
+                    "enabled"
+                ),
+                "name_enabled": xml.get_tag_value_inside_block(
+                    verify_text,
+                    "channelNameOverlay",
+                    "enabled"
+                ),
+                "name": xml.get_tag_value_inside_block(
+                    verify_text,
+                    "channelNameOverlay",
+                    "name"
+                ),
+                "response": put_result.get("response", "")
+            })
+
+        ok = any(item.get("success") for item in results)
+
+        return {
+            "success": ok,
+            "results": results
+        }
+
+    def reboot(self, ip, username=None, password=None):
+        auth = self._auth(username, password)
+        url = f"http://{ip}/ISAPI/System/reboot"
 
         try:
-            response = requests.put(
+            r = requests.put(
                 url,
-                data=xml.encode("utf-8"),
-                headers={"Content-Type": "application/xml"},
                 auth=auth,
-                timeout=5,
-                verify=False
+                verify=False,
+                timeout=5
             )
 
             return {
-                "success": response.status_code in [200, 201],
-                "status_code": response.status_code,
-                "response": response.text[:500]
+                "success": r.status_code in [200, 201],
+                "status_code": r.status_code,
+                "response": r.text[:500]
             }
 
         except Exception as error:
@@ -157,3 +207,86 @@ class HikvisionDriver(BaseDriver):
                 "success": False,
                 "error": str(error)
             }
+
+    def hide_osd(self, ip, username=None, password=None):
+        osd_result = self._apply_osd(
+            ip=ip,
+            username=username,
+            password=password,
+            enabled=False,
+            name_value=""
+        )
+
+        reboot_result = self.reboot(ip, username, password)
+
+        osd_result["reboot"] = reboot_result
+        osd_result["note"] = "OSD dimatikan dan kamera reboot otomatis. Tunggu 60-120 detik."
+
+        return osd_result
+
+    def show_osd(self, ip, username=None, password=None):
+        osd_result = self._apply_osd(
+            ip=ip,
+            username=username,
+            password=password,
+            enabled=True,
+            name_value="AI Director Debug"
+        )
+
+        reboot_result = self.reboot(ip, username, password)
+
+        osd_result["reboot"] = reboot_result
+        osd_result["note"] = "OSD debug dinyalakan dan kamera reboot otomatis. Tunggu 60-120 detik."
+
+        return osd_result
+
+    def get_osd_status(self, ip, username=None, password=None):
+        auth = self._auth(username, password)
+        xml = XMLConfigEngine(auth)
+
+        output = []
+
+        for url in self._osd_urls(ip):
+            result = xml.get_text(url)
+
+            if not result.get("success"):
+                output.append({
+                    "url": url,
+                    "success": False,
+                    "status_code": result.get("status_code")
+                })
+                continue
+
+            text = result.get("text", "")
+
+            output.append({
+                "url": url,
+                "success": True,
+                "date_enabled": xml.get_tag_value_inside_block(text, "DateTimeOverlay", "enabled"),
+                "name_enabled": xml.get_tag_value_inside_block(text, "channelNameOverlay", "enabled"),
+                "name": xml.get_tag_value_inside_block(text, "channelNameOverlay", "name")
+            })
+
+        return output
+
+    def set_timezone(self, ip, username=None, password=None, timezone="CST-7:00:00"):
+        auth = self._auth(username, password)
+        url = f"http://{ip}/ISAPI/System/time"
+
+        xml = XMLConfigEngine(auth)
+        current = xml.get_text(url)
+
+        if not current.get("success"):
+            return {
+                "success": False,
+                "message": "GET XML time gagal",
+                "status_code": current.get("status_code")
+            }
+
+        xml_text = xml.set_tag_value(
+            current["text"],
+            "timeZone",
+            timezone
+        )
+
+        return xml.put_text(url, xml_text)
