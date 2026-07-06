@@ -5,8 +5,7 @@ from app.modules.provisioning.profile_engine import ProfileEngine
 from app.modules.provisioning.verify_engine import VerifyEngine
 from app.modules.overlay.overlay_engine import OverlayEngine
 from flask import Response
-
-from app.modules.streaming.mjpeg_stream import MJPEGStream
+from app.modules.video.video_manager import VideoManager
 
 from app.core.config import Config
 from app.repositories.system_repository import SystemRepository
@@ -114,21 +113,45 @@ def api_camera_ping():
         "cameras": results
     })
 
-@app.route("/camera/<int:camera_id>/live")
-def camera_live(camera_id):
-
+@app.route("/camera/<int:camera_id>/stream")
+def camera_stream(camera_id):
     repo = CameraRepository()
-
     camera = repo.find(camera_id)
 
     if camera is None:
-        return "Camera not found",404
+        return "Camera tidak ditemukan", 404
 
-    stream = MJPEGStream(camera["rtsp_url"])
+    vm = VideoManager()
+    vm.start_camera(camera)
 
     return Response(
-        stream.generate(),
+        vm.mjpeg_generator(camera_id),
         mimetype="multipart/x-mixed-replace; boundary=frame"
+    )
+
+
+@app.route("/camera/<int:camera_id>/stream-status")
+def camera_stream_status(camera_id):
+    vm = VideoManager()
+    return jsonify(vm.get_status(camera_id))
+
+
+@app.route("/camera/<int:camera_id>/stream-stop", methods=["POST"])
+def camera_stream_stop(camera_id):
+    vm = VideoManager()
+    vm.stop_camera(camera_id)
+
+    return jsonify({
+        "success": True,
+        "camera_id": camera_id
+    })
+
+
+@app.route("/robots.txt")
+def robots_txt():
+    return Response(
+        "User-agent: *\nDisallow:\n",
+        mimetype="text/plain"
     )
 
 

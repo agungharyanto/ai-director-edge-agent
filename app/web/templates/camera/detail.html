@@ -18,7 +18,6 @@
 <tr><td>Status</td><td>{{ camera["status"] }}</td></tr>
 <tr><td>Ping</td><td>{{ camera["ping_status"] }}</td></tr>
 <tr><td>Latency</td><td>{{ camera["ping_latency_ms"] or "-" }} ms</td></tr>
-
 <tr>
 <td>AI Ready</td>
 <td>
@@ -33,7 +32,6 @@
 {% endif %}
 </td>
 </tr>
-
 <tr><td>RTSP</td><td style="word-break:break-all">{{ camera["rtsp_url"] or "-" }}</td></tr>
 </table>
 
@@ -55,22 +53,20 @@
 <div class="col-md-8">
 <div class="card">
 <div class="card-header">
-<h3 class="card-title">Snapshot + Virtual Overlay</h3>
-<div class="card-tools">
-<button onclick="refreshSnapshot()" class="btn btn-primary btn-sm">Refresh Snapshot</button>
-</div>
+<h3 class="card-title">Live View + Virtual Overlay</h3>
 </div>
 
 <div class="card-body">
 <div style="position:relative;display:inline-block;width:100%;">
 
 <img
-class="img-fluid rounded"
-src="{{ url_for('camera_live',camera_id=camera['id']) }}"
+    src="/camera/{{ camera['id'] }}/stream"
+    id="live-stream"
+    class="img-fluid rounded border"
+    style="width:100%;"
 >
 
-<div
-style="
+<div style="
 position:absolute;
 top:12px;
 left:12px;
@@ -94,39 +90,14 @@ Time : <span id="overlayClock">{{ overlay.time }}</span>
 </div>
 
 </div>
+
+<hr>
+
+<div id="streamStatus" class="small text-muted">
+Loading stream status...
 </div>
 
-<div class="card-footer text-center">
-
-{% if camera["provision_status"]=="AI_READY" %}
-
-<span class="badge badge-success">
-AI READY
-</span>
-
-{% elif camera["provision_status"]=="FAILED" %}
-
-<span class="badge badge-danger">
-FAILED
-</span>
-
-{% else %}
-
-<span class="badge badge-warning">
-{{ camera["provision_status"] }}
-</span>
-
-{% endif %}
-
-{% if camera["provisioned_at"] %}
-<br><small class="text-muted">
-Provisioned :
-{{ camera["provisioned_at"] }}
-</small>
-{% endif %}
-
 </div>
-
 </div>
 </div>
 </div>
@@ -135,6 +106,10 @@ Provisioned :
 
 {% block scripts %}
 <script>
+let statusTimer = null;
+let clockTimer = null;
+let streamStopped = false;
+
 function pad(x){
     return String(x).padStart(2,"0");
 }
@@ -154,12 +129,69 @@ function updateOverlayClock(){
         pad(d.getSeconds());
 }
 
-function refreshSnapshot(){
-    const img = document.getElementById('snapshot-image');
-    img.src = "/camera/{{ camera['id'] }}/snapshot?ts=" + new Date().getTime();
+async function refreshStreamStatus(){
+    try{
+        const r = await fetch("/camera/{{ camera['id'] }}/stream-status", {
+            cache: "no-store"
+        });
+
+        const s = await r.json();
+
+        document.getElementById("streamStatus").innerHTML =
+            "Online : " + s.online +
+            "<br>Frame : " + s.frame_count +
+            "<br>Motion : " + s.motion +
+            "<br>Error : " + (s.error || "-");
+
+    }catch(e){
+        document.getElementById("streamStatus").innerHTML = "Status error";
+    }
 }
 
-setInterval(updateOverlayClock, 1000);
-setInterval(refreshSnapshot, 5000);
+function stopStream(){
+    if(streamStopped) return;
+
+    streamStopped = true;
+
+    if(statusTimer){
+        clearInterval(statusTimer);
+    }
+
+    if(clockTimer){
+        clearInterval(clockTimer);
+    }
+
+    try{
+        navigator.sendBeacon("/camera/{{ camera['id'] }}/stream-stop");
+    }catch(e){
+        fetch("/camera/{{ camera['id'] }}/stream-stop", {
+            method: "POST",
+            keepalive: true
+        });
+    }
+}
+
+const live = document.getElementById("live-stream");
+
+live.onerror = function(){
+    setTimeout(function(){
+        live.src = "/camera/{{ camera['id'] }}/stream?ts=" + new Date().getTime();
+    }, 3000);
+};
+
+clockTimer = setInterval(updateOverlayClock, 1000);
+statusTimer = setInterval(refreshStreamStatus, 2000);
+
+updateOverlayClock();
+refreshStreamStatus();
+
+window.addEventListener("beforeunload", stopStream);
+window.addEventListener("pagehide", stopStream);
+
+document.addEventListener("visibilitychange", function(){
+    if(document.visibilityState === "hidden"){
+        stopStream();
+    }
+});
 </script>
 {% endblock %}
