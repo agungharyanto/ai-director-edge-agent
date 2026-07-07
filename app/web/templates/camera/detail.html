@@ -161,6 +161,42 @@ Ball Detection: loading...
 Calibration: loading...
 </div>
 
+<hr>
+
+<div class="card">
+<div class="card-header">
+<h3 class="card-title">AI Dataset</h3>
+</div>
+<div class="card-body">
+
+<button class="btn btn-info btn-block dataset-capture-btn" data-category="player" type="button">
+Capture Player Frame
+</button>
+
+<button class="btn btn-warning btn-block dataset-capture-btn" data-category="ball" type="button">
+Capture Ball Frame
+</button>
+
+<button class="btn btn-success btn-block dataset-capture-btn" data-category="court" type="button">
+Capture Court Frame
+</button>
+
+<div id="datasetCaptureStatus" class="small text-muted mt-2">
+Dataset: ready.
+</div>
+
+<table class="table table-sm table-bordered mt-2">
+<tr><td>Player</td><td id="datasetPlayerCount">-</td></tr>
+<tr><td>Ball</td><td id="datasetBallCount">-</td></tr>
+<tr><td>Court</td><td id="datasetCourtCount">-</td></tr>
+<tr><td>Racket</td><td id="datasetRacketCount">-</td></tr>
+<tr><td>Custom</td><td id="datasetCustomCount">-</td></tr>
+</table>
+
+</div>
+</div>
+
+
 </div>
 </div>
 </div>
@@ -637,6 +673,52 @@ document.getElementById("ballDetectionSwitch").addEventListener("change", async 
 
     refreshBallDetectionStatus();
 });
+
+
+async function refreshDatasetStats(){
+    try{
+        const r = await fetch("/dataset/stats", {cache:"no-store"});
+        const data = await r.json();
+
+        if(data.success){
+            document.getElementById("datasetPlayerCount").innerHTML = data.stats.player || 0;
+            document.getElementById("datasetBallCount").innerHTML = data.stats.ball || 0;
+            document.getElementById("datasetCourtCount").innerHTML = data.stats.court || 0;
+            document.getElementById("datasetRacketCount").innerHTML = data.stats.racket || 0;
+            document.getElementById("datasetCustomCount").innerHTML = data.stats.custom || 0;
+        }
+    }catch(e){
+        document.getElementById("datasetCaptureStatus").innerHTML = "Dataset stats error.";
+    }
+}
+
+document.querySelectorAll(".dataset-capture-btn").forEach(function(btn){
+    btn.addEventListener("click", async function(){
+        const category = this.getAttribute("data-category");
+        const status = document.getElementById("datasetCaptureStatus");
+
+        status.innerHTML = "Capturing " + category + "...";
+
+        try{
+            const r = await fetch("/camera/{{ camera['id'] }}/dataset/" + category, {
+                method: "POST"
+            });
+
+            const data = await r.json();
+
+            if(data.success){
+                status.innerHTML = "Saved: " + data.filename;
+                refreshDatasetStats();
+            }else{
+                status.innerHTML = "Capture failed: " + data.error;
+            }
+        }catch(e){
+            status.innerHTML = "Capture request error.";
+        }
+    });
+});
+
+refreshDatasetStats();
 
 </script>
 {% endblock %}

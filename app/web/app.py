@@ -7,6 +7,7 @@ from app.modules.provisioning.verify_engine import VerifyEngine
 from app.modules.overlay.overlay_engine import OverlayEngine
 from flask import Response
 from app.modules.video.video_manager import VideoManager
+from app.modules.dataset.dataset_manager import DatasetManager
 
 from app.core.config import Config
 from app.repositories.system_repository import SystemRepository
@@ -197,6 +198,31 @@ def camera_ball_detection_status(camera_id):
         "success": True,
         "camera_id": camera_id,
         "enabled": vm.is_ball_detection_enabled(camera_id)
+    })
+
+
+
+@app.route("/camera/<int:camera_id>/dataset/<category>", methods=["POST"])
+def camera_dataset_capture(camera_id, category):
+    vm = VideoManager()
+    frame = vm.get_frame(camera_id)
+
+    result = DatasetManager().capture(
+        camera_id=camera_id,
+        frame=frame,
+        category=category
+    )
+
+    status = 200 if result.get("success") else 400
+
+    return jsonify(result), status
+
+
+@app.route("/dataset/stats")
+def dataset_stats():
+    return jsonify({
+        "success": True,
+        "stats": DatasetManager().stats()
     })
 
 
