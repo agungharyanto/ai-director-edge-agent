@@ -21,3 +21,4 @@ storage/database/*.db
 .venv/
 yolov8n.pt
 yolov8n.pt
+storage/datasets/*/raw/*.jpg
