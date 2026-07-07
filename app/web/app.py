@@ -399,6 +399,55 @@ def camera_detail(camera_id):
         overlay=overlay
     )
 
+@app.route("/camera/<int:camera_id>/calibration")
+def camera_calibration(camera_id):
+
+    repo = CourtRepository()
+
+    data = repo.get_camera_calibration(camera_id)
+
+    if data is None:
+        return jsonify({
+            "success": False
+        })
+
+    return jsonify({
+        "success": True,
+        "top_left": [
+            data["top_left_x"],
+            data["top_left_y"]
+        ],
+        "top_right": [
+            data["top_right_x"],
+            data["top_right_y"]
+        ],
+        "bottom_right": [
+            data["bottom_right_x"],
+            data["bottom_right_y"]
+        ],
+        "bottom_left": [
+            data["bottom_left_x"],
+            data["bottom_left_y"]
+        ]
+    })
+
+@app.route(
+    "/camera/<int:camera_id>/calibration",
+    methods=["POST"]
+)
+def camera_calibration_save(camera_id):
+
+    payload = request.get_json()
+
+    CourtRepository().save_camera_calibration(
+        camera_id,
+        payload
+    )
+
+    return jsonify({
+        "success": True
+    })
+
 
 @app.route("/camera/<int:camera_id>/snapshot")
 def camera_snapshot(camera_id):

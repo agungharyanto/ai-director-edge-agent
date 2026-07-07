@@ -75,3 +75,21 @@ VALUES (1,'AI Director Database v1');
 
 INSERT OR IGNORE INTO schema_version(version,description)
 VALUES (2,'Tambah domain court dan relasi camera ke court');
+
+CREATE TABLE IF NOT EXISTS camera_calibration (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    camera_id INTEGER NOT NULL UNIQUE,
+    top_left_x INTEGER NOT NULL,
+    top_left_y INTEGER NOT NULL,
+    top_right_x INTEGER NOT NULL,
+    top_right_y INTEGER NOT NULL,
+    bottom_right_x INTEGER NOT NULL,
+    bottom_right_y INTEGER NOT NULL,
+    bottom_left_x INTEGER NOT NULL,
+    bottom_left_y INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT OR IGNORE INTO schema_version(version,description)
+VALUES (3,'Tambah camera court calibration');
