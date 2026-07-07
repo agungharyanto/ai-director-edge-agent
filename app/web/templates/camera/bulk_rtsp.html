@@ -1,0 +1,52 @@
+{% extends "layout.html" %}
+{% set title = "Bulk RTSP - AI Director" %}
+{% set page_title = "Bulk Update RTSP" %}
+
+{% block content %}
+<div class="card">
+<div class="card-header">
+<h3 class="card-title">Bulk Update RTSP Credentials</h3>
+</div>
+
+<form method="POST">
+<div class="card-body">
+
+<div class="alert alert-warning">
+Gunakan fitur ini jika beberapa kamera memakai username/password RTSP yang sama.
+</div>
+
+<div class="form-group">
+<label>Vendor Filter</label>
+<select name="vendor_filter" class="form-control">
+<option value="ALL">Semua Kamera</option>
+{% for vendor in vendors %}
+<option value="{{ vendor }}">{{ vendor }}</option>
+{% endfor %}
+</select>
+</div>
+
+<div class="form-group">
+<label>Username</label>
+<input type="text" name="username" class="form-control" placeholder="admin" required>
+</div>
+
+<div class="form-group">
+<label>Password</label>
+<input type="password" name="password" class="form-control" required>
+</div>
+
+<div class="form-group">
+<label>RTSP Path</label>
+<input type="text" name="rtsp_path" class="form-control" value="/Streaming/Channels/101" required>
+<small class="text-muted">Hikvision umum: /Streaming/Channels/101</small>
+</div>
+
+</div>
+
+<div class="card-footer">
+<button type="submit" class="btn btn-primary" onclick="return confirm('Update RTSP semua kamera sesuai filter?')">Update RTSP</button>
+<a href="/camera" class="btn btn-secondary">Kembali</a>
+</div>
+</form>
+</div>
+{% endblock %}

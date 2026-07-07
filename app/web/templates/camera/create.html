@@ -1,0 +1,57 @@
+{% extends "layout.html" %}
+{% set title = "Tambah Camera - AI Director" %}
+{% set page_title = "Tambah Camera" %}
+
+{% block content %}
+<div class="card">
+<div class="card-header">
+<h3 class="card-title">Form Camera</h3>
+</div>
+
+<form method="POST">
+<div class="card-body">
+
+<div class="form-group">
+<label>Nama Camera</label>
+<input type="text" name="name" class="form-control" placeholder="Contoh: Kamera Belakang Court 1" required>
+</div>
+
+<div class="form-group">
+<label>Court</label>
+<select name="court_uuid" class="form-control">
+<option value="">Belum Assign</option>
+{% for court in courts %}
+<option value="{{ court["uuid"] }}">{{ court["name"] }}</option>
+{% endfor %}
+</select>
+</div>
+
+<div class="form-group">
+<label>IP Address</label>
+<input type="text" name="ip_address" class="form-control" placeholder="Contoh: 10.101.1.11" required>
+</div>
+
+<div class="form-group">
+<label>RTSP URL</label>
+<input type="text" name="rtsp_url" class="form-control" placeholder="rtsp://user:password@ip:554/Streaming/Channels/101">
+</div>
+
+<div class="form-group">
+<label>Vendor</label>
+<input type="text" name="vendor" class="form-control" placeholder="Contoh: Hikvision">
+</div>
+
+<div class="form-group">
+<label>Model</label>
+<input type="text" name="model" class="form-control" placeholder="Contoh: DS-2CD1143G2-LIU">
+</div>
+
+</div>
+
+<div class="card-footer">
+<button type="submit" class="btn btn-primary">Simpan</button>
+<a href="/camera" class="btn btn-secondary">Kembali</a>
+</div>
+</form>
+</div>
+{% endblock %}

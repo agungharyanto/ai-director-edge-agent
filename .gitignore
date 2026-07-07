@@ -1,5 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+
+# Environment
 .env
-recordings/*
-logs/*
-*.mp4
-*.log
+
+# Runtime
+storage/logs/*
+storage/recordings/*
+storage/uploads/*
+storage/temp/*
+storage/database/*.db
+
+# Keep folder
+!storage/logs/.gitkeep
+!storage/recordings/.gitkeep
+!storage/uploads/.gitkeep
+!storage/temp/.gitkeep
+!storage/database/.gitkeep
+.venv/
+yolov8n.pt
+yolov8n.pt
+storage/datasets/*/raw/*.jpg

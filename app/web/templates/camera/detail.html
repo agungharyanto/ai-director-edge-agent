@@ -1,0 +1,724 @@
+{% extends "layout.html" %}
+{% set title = "Camera Detail - AI Director" %}
+{% set page_title = camera["name"] %}
+
+{% block content %}
+
+<style>
+.offline-pulse{
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    z-index:40;
+    background:rgba(220,53,69,.92);
+    color:white;
+    padding:18px 32px;
+    border-radius:10px;
+    font-size:24px;
+    font-weight:bold;
+    letter-spacing:2px;
+    display:none;
+    animation:offlinePulse 1s infinite;
+}
+@keyframes offlinePulse{
+    0%{opacity:.45; transform:translate(-50%,-50%) scale(.98);}
+    50%{opacity:1; transform:translate(-50%,-50%) scale(1.04);}
+    100%{opacity:.45; transform:translate(-50%,-50%) scale(.98);}
+}
+</style>
+
+
+<style>
+.ai-switch-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-top:12px;
+}
+.ai-switch{
+    position:relative;
+    width:58px;
+    height:30px;
+}
+.ai-switch input{
+    opacity:0;
+    width:0;
+    height:0;
+}
+.ai-slider{
+    position:absolute;
+    cursor:pointer;
+    top:0;
+    left:0;
+    right:0;
+    bottom:0;
+    background:#6c757d;
+    transition:.25s;
+    border-radius:30px;
+}
+.ai-slider:before{
+    position:absolute;
+    content:"";
+    height:22px;
+    width:22px;
+    left:4px;
+    bottom:4px;
+    background:white;
+    transition:.25s;
+    border-radius:50%;
+}
+.ai-switch input:checked + .ai-slider{
+    background:#28a745;
+}
+.ai-switch input:checked + .ai-slider:before{
+    transform:translateX(28px);
+}
+</style>
+
+
+<div class="row">
+<div class="col-md-4">
+<div class="card">
+<div class="card-header"><h3 class="card-title">Camera Info</h3></div>
+<div class="card-body">
+
+<table class="table table-bordered">
+<tr><td>Name</td><td>{{ camera["name"] }}</td></tr>
+<tr><td>IP</td><td>{{ camera["ip_address"] }}</td></tr>
+<tr><td>Vendor</td><td>{{ camera["vendor"] }}</td></tr>
+<tr><td>Model</td><td>{{ camera["model"] }}</td></tr>
+<tr><td>Status</td><td>{{ camera["status"] }}</td></tr>
+<tr><td>Ping</td><td>{{ camera["ping_status"] }}</td></tr>
+<tr><td>Latency</td><td>{{ camera["ping_latency_ms"] or "-" }} ms</td></tr>
+<tr>
+<td>AI Ready</td>
+<td>
+{% if camera["provision_status"] == "AI_READY" %}
+<span class="badge badge-success">AI READY</span>
+{% elif camera["provision_status"] == "FAILED" %}
+<span class="badge badge-danger">FAILED</span>
+{% elif camera["provision_status"] == "AUTH_REQUIRED" %}
+<span class="badge badge-warning">AUTH REQUIRED</span>
+{% else %}
+<span class="badge badge-secondary">{{ camera["provision_status"] or "UNKNOWN" }}</span>
+{% endif %}
+</td>
+</tr>
+<tr><td>RTSP</td><td style="word-break:break-all">{{ camera["rtsp_url"] or "-" }}</td></tr>
+</table>
+
+<a href="/camera" class="btn btn-secondary">Back</a>
+<a href="/camera/{{ camera['id'] }}/edit" class="btn btn-info">Edit</a>
+
+<form method="POST" action="/camera/{{ camera['id'] }}/verify" style="display:inline">
+<button class="btn btn-success">Verify AI</button>
+</form>
+
+<form method="POST" action="/camera/{{ camera['id'] }}/hide-osd" style="display:inline">
+<button class="btn btn-warning" onclick="return confirm('Matikan OSD dan reboot kamera?')">Hide OSD</button>
+</form>
+
+<hr>
+
+<button id="calibrateBtn" class="btn btn-primary btn-block" type="button">
+Calibrate Court
+</button>
+
+<button id="resetCalibrationBtn" class="btn btn-danger btn-block" type="button">
+Reset Points
+</button>
+
+<button id="saveCalibrationBtn" class="btn btn-success btn-block" type="button">
+Save Calibration
+</button>
+
+<hr>
+
+<div class="ai-switch-row">
+    <b>Player Detection</b>
+    <label class="ai-switch">
+        <input id="playerDetectionSwitch" type="checkbox">
+        <span class="ai-slider"></span>
+    </label>
+</div>
+<div id="playerDetectionStatus" class="small text-muted mt-2">
+Player Detection: loading...
+</div>
+
+<div class="ai-switch-row">
+    <b>Ball Detection</b>
+    <label class="ai-switch">
+        <input id="ballDetectionSwitch" type="checkbox">
+        <span class="ai-slider"></span>
+    </label>
+</div>
+<div id="ballDetectionStatus" class="small text-muted mt-2">
+Ball Detection: loading...
+</div>
+
+<div id="calibrationInfo" class="small text-muted mt-2">
+Calibration: loading...
+</div>
+
+<hr>
+
+<div class="card">
+<div class="card-header">
+<h3 class="card-title">AI Dataset</h3>
+</div>
+<div class="card-body">
+
+<button class="btn btn-info btn-block dataset-capture-btn" data-category="player" type="button">
+Capture Player Frame
+</button>
+
+<button class="btn btn-warning btn-block dataset-capture-btn" data-category="ball" type="button">
+Capture Ball Frame
+</button>
+
+<button class="btn btn-success btn-block dataset-capture-btn" data-category="court" type="button">
+Capture Court Frame
+</button>
+
+<div id="datasetCaptureStatus" class="small text-muted mt-2">
+Dataset: ready.
+</div>
+
+<table class="table table-sm table-bordered mt-2">
+<tr><td>Player</td><td id="datasetPlayerCount">-</td></tr>
+<tr><td>Ball</td><td id="datasetBallCount">-</td></tr>
+<tr><td>Court</td><td id="datasetCourtCount">-</td></tr>
+<tr><td>Racket</td><td id="datasetRacketCount">-</td></tr>
+<tr><td>Custom</td><td id="datasetCustomCount">-</td></tr>
+</table>
+
+</div>
+</div>
+
+
+</div>
+</div>
+</div>
+
+<div class="col-md-8">
+<div class="card">
+<div class="card-header">
+<h3 class="card-title">Live View + Court Calibration</h3>
+</div>
+
+<div class="card-body">
+<div id="videoWrap" style="position:relative;display:inline-block;width:100%;">
+
+<img
+    src="/camera/{{ camera['id'] }}/stream"
+    id="live-stream"
+    class="img-fluid rounded border"
+    style="width:100%;display:block;"
+>
+
+<div id="offlinePulse" class="offline-pulse">
+OFFLINE
+</div>
+
+<canvas
+    id="calibrationCanvas"
+    style="
+        position:absolute;
+        top:0;
+        left:0;
+        width:100%;
+        height:100%;
+        pointer-events:none;
+        z-index:10;
+    "
+></canvas>
+
+<div style="
+position:absolute;
+top:12px;
+left:12px;
+background:rgba(0,0,0,.60);
+color:white;
+padding:10px 14px;
+font-size:13px;
+border-radius:6px;
+line-height:20px;
+min-width:260px;
+text-align:left;
+z-index:20;
+">
+
+<b>{{ overlay.court }}</b><br>
+Camera : {{ overlay.camera }}<br>
+Vendor : {{ overlay.vendor }}<br>
+Model : {{ overlay.model }}<br>
+AI : {{ overlay.status }}<br>
+Time : <span id="overlayClock">{{ overlay.time }}</span><br>
+Mode : <span id="calibrationModeLabel">VIEW</span>
+
+</div>
+
+</div>
+
+<hr>
+
+<div id="streamStatus" class="small text-muted">
+Loading stream status...
+</div>
+
+
+
+</div>
+</div>
+</div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+
+function setSwitchState(inputId, enabled){
+    const el = document.getElementById(inputId);
+    if(el){
+        el.checked = enabled;
+    }
+}
+
+let statusTimer = null;
+let clockTimer = null;
+let streamStopped = false;
+let lastStreamOnline = null;
+
+let calibrationMode = false;
+let calibrationPoints = [];
+
+const pointNames = [
+    "top_left",
+    "top_right",
+    "bottom_right",
+    "bottom_left"
+];
+
+const pointLabels = [
+    "Top Left",
+    "Top Right",
+    "Bottom Right",
+    "Bottom Left"
+];
+
+function pad(x){
+    return String(x).padStart(2,"0");
+}
+
+function updateOverlayClock(){
+    let d = new Date();
+    let el = document.getElementById("overlayClock");
+
+    if(!el) return;
+
+    el.innerHTML =
+        pad(d.getDate()) + "-" +
+        pad(d.getMonth()+1) + "-" +
+        d.getFullYear() + " " +
+        pad(d.getHours()) + ":" +
+        pad(d.getMinutes()) + ":" +
+        pad(d.getSeconds());
+}
+
+async function refreshStreamStatus(){
+    try{
+        const r = await fetch("/camera/{{ camera['id'] }}/stream-status", {
+            cache: "no-store"
+        });
+
+        const s = await r.json();
+
+        const offline = document.getElementById("offlinePulse");
+        if(offline){
+            offline.style.display = s.online ? "none" : "block";
+        }
+
+        if(lastStreamOnline === false && s.online === true){
+            const live = document.getElementById("live-stream");
+            if(live){
+                live.src = "/camera/{{ camera['id'] }}/stream?ts=" + new Date().getTime();
+            }
+        }
+
+        lastStreamOnline = s.online;
+
+        document.getElementById("streamStatus").innerHTML =
+            "Online : " + s.online +
+            "<br>Stale : " + s.stale +
+            "<br>Frame : " + s.frame_count +
+            "<br>Motion : " + s.motion +
+            "<br>Player Detection : " + s.player_detection +
+            "<br>Player Count : " + s.player_count +
+            "<br>Ball Detection : " + s.ball_detection +
+            "<br>Ball Count : " + s.ball_count +
+            "<br>Error : " + (s.error || "-");
+
+    }catch(e){
+        document.getElementById("streamStatus").innerHTML = "Status error";
+    }
+}
+
+function stopStream(){
+    if(streamStopped) return;
+
+    streamStopped = true;
+
+    if(statusTimer){
+        clearInterval(statusTimer);
+    }
+
+    if(clockTimer){
+        clearInterval(clockTimer);
+    }
+
+    try{
+        navigator.sendBeacon("/camera/{{ camera['id'] }}/stream-stop");
+    }catch(e){
+        fetch("/camera/{{ camera['id'] }}/stream-stop", {
+            method: "POST",
+            keepalive: true
+        });
+    }
+}
+
+function resizeCanvas(){
+    const live = document.getElementById("live-stream");
+    const canvas = document.getElementById("calibrationCanvas");
+
+    canvas.width = live.clientWidth;
+    canvas.height = live.clientHeight;
+
+    drawCalibration();
+}
+
+function drawCalibration(){
+    const canvas = document.getElementById("calibrationCanvas");
+    const ctx = canvas.getContext("2d");
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if(calibrationPoints.length === 0){
+        return;
+    }
+
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "lime";
+    ctx.fillStyle = "rgba(0,255,0,0.18)";
+
+    ctx.beginPath();
+    calibrationPoints.forEach(function(p, i){
+        if(i === 0){
+            ctx.moveTo(p.x, p.y);
+        }else{
+            ctx.lineTo(p.x, p.y);
+        }
+    });
+
+    if(calibrationPoints.length === 4){
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    ctx.stroke();
+
+    calibrationPoints.forEach(function(p, i){
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+        ctx.fillStyle = "yellow";
+        ctx.fill();
+
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "black";
+        ctx.stroke();
+
+        ctx.font = "bold 14px Arial";
+        ctx.fillStyle = "white";
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 4;
+        ctx.strokeText((i + 1) + ". " + pointLabels[i], p.x + 10, p.y - 10);
+        ctx.fillText((i + 1) + ". " + pointLabels[i], p.x + 10, p.y - 10);
+    });
+}
+
+function updateCalibrationInfo(){
+    let info = document.getElementById("calibrationInfo");
+    let mode = document.getElementById("calibrationModeLabel");
+
+    mode.innerHTML = calibrationMode ? "CALIBRATION" : "VIEW";
+
+    if(calibrationPoints.length >= 4){
+        info.innerHTML = "Calibration: 4/4 points ready. Klik Save Calibration.";
+        return;
+    }
+
+    let next = pointLabels[calibrationPoints.length] || "-";
+    info.innerHTML = "Calibration: " + calibrationPoints.length + "/4. Next: " + next;
+}
+
+function canvasClick(e){
+    if(!calibrationMode){
+        return;
+    }
+
+    if(calibrationPoints.length >= 4){
+        return;
+    }
+
+    const canvas = document.getElementById("calibrationCanvas");
+    const rect = canvas.getBoundingClientRect();
+
+    const x = Math.round(e.clientX - rect.left);
+    const y = Math.round(e.clientY - rect.top);
+
+    calibrationPoints.push({
+        x: x,
+        y: y
+    });
+
+    drawCalibration();
+    updateCalibrationInfo();
+}
+
+async function loadCalibration(){
+    try{
+        const r = await fetch("/camera/{{ camera['id'] }}/calibration", {
+            cache: "no-store"
+        });
+
+        const data = await r.json();
+
+        if(data.success){
+            calibrationPoints = [
+                {x: data.top_left[0], y: data.top_left[1]},
+                {x: data.top_right[0], y: data.top_right[1]},
+                {x: data.bottom_right[0], y: data.bottom_right[1]},
+                {x: data.bottom_left[0], y: data.bottom_left[1]}
+            ];
+        }
+
+        drawCalibration();
+        updateCalibrationInfo();
+
+    }catch(e){
+        document.getElementById("calibrationInfo").innerHTML = "Calibration: load error";
+    }
+}
+
+async function saveCalibration(){
+    if(calibrationPoints.length !== 4){
+        alert("Harus klik 4 titik dulu.");
+        return;
+    }
+
+    const payload = {
+        top_left: [calibrationPoints[0].x, calibrationPoints[0].y],
+        top_right: [calibrationPoints[1].x, calibrationPoints[1].y],
+        bottom_right: [calibrationPoints[2].x, calibrationPoints[2].y],
+        bottom_left: [calibrationPoints[3].x, calibrationPoints[3].y]
+    };
+
+    const r = await fetch("/camera/{{ camera['id'] }}/calibration", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+    });
+
+    const data = await r.json();
+
+    if(data.success){
+        calibrationMode = false;
+        document.getElementById("calibrationCanvas").style.pointerEvents = "none";
+        updateCalibrationInfo();
+        alert("Calibration saved.");
+    }else{
+        alert("Save calibration failed.");
+    }
+}
+
+const live = document.getElementById("live-stream");
+const canvas = document.getElementById("calibrationCanvas");
+
+live.onerror = function(){
+    setTimeout(function(){
+        live.src = "/camera/{{ camera['id'] }}/stream?ts=" + new Date().getTime();
+    }, 3000);
+};
+
+live.onload = function(){
+    resizeCanvas();
+};
+
+canvas.addEventListener("click", canvasClick);
+
+document.getElementById("calibrateBtn").addEventListener("click", function(){
+    calibrationMode = !calibrationMode;
+    canvas.style.pointerEvents = calibrationMode ? "auto" : "none";
+    updateCalibrationInfo();
+});
+
+document.getElementById("resetCalibrationBtn").addEventListener("click", function(){
+    calibrationPoints = [];
+    drawCalibration();
+    updateCalibrationInfo();
+});
+
+document.getElementById("saveCalibrationBtn").addEventListener("click", saveCalibration);
+
+
+async function refreshPlayerDetectionStatus(){
+    try{
+        const r = await fetch("/camera/{{ camera['id'] }}/player-detection/status", {
+            cache: "no-store"
+        });
+        const data = await r.json();
+        document.getElementById("playerDetectionStatus").innerHTML =
+            "Player Detection: " + (data.enabled ? "ON" : "OFF");
+        setSwitchState("playerDetectionSwitch", data.enabled);
+    }catch(e){
+        document.getElementById("playerDetectionStatus").innerHTML =
+            "Player Detection: status error";
+    }
+}
+
+async function refreshBallDetectionStatus(){
+    try{
+        const r = await fetch("/camera/{{ camera['id'] }}/ball-detection/status", {
+            cache: "no-store"
+        });
+        const data = await r.json();
+        document.getElementById("ballDetectionStatus").innerHTML =
+            "Ball Detection: " + (data.enabled ? "ON" : "OFF");
+        setSwitchState("ballDetectionSwitch", data.enabled);
+    }catch(e){
+        document.getElementById("ballDetectionStatus").innerHTML =
+            "Ball Detection: status error";
+    }
+}
+
+
+
+
+
+refreshPlayerDetectionStatus();
+refreshBallDetectionStatus();
+
+
+window.addEventListener("resize", resizeCanvas);
+
+clockTimer = setInterval(updateOverlayClock, 1000);
+statusTimer = setInterval(refreshStreamStatus, 2000);
+
+updateOverlayClock();
+refreshStreamStatus();
+refreshPlayerDetectionStatus();
+refreshBallDetectionStatus();
+resizeCanvas();
+loadCalibration();
+
+
+
+
+
+
+
+async function refreshPlayerDetectionStatus(){
+    try{
+        const r = await fetch("/camera/{{ camera['id'] }}/player-detection/status", {
+            cache: "no-store"
+        });
+
+        const s = await r.json();
+
+        document.getElementById("playerDetectionStatus").innerHTML =
+            "Player Detection: " + (s.enabled ? "ON" : "OFF");
+
+    }catch(e){
+        document.getElementById("playerDetectionStatus").innerHTML =
+            "Player Detection: status error";
+    }
+}
+
+
+
+
+
+
+document.getElementById("playerDetectionSwitch").addEventListener("change", async function(){
+    const dataBefore = await fetch("/camera/{{ camera['id'] }}/player-detection/status", {cache:"no-store"}).then(r => r.json());
+
+    if(dataBefore.enabled !== this.checked){
+        const data = await fetch("/camera/{{ camera['id'] }}/player-detection/toggle", {method:"POST"}).then(r => r.json());
+        this.checked = data.enabled;
+    }
+
+    refreshPlayerDetectionStatus();
+});
+
+document.getElementById("ballDetectionSwitch").addEventListener("change", async function(){
+    const dataBefore = await fetch("/camera/{{ camera['id'] }}/ball-detection/status", {cache:"no-store"}).then(r => r.json());
+
+    if(dataBefore.enabled !== this.checked){
+        const data = await fetch("/camera/{{ camera['id'] }}/ball-detection/toggle", {method:"POST"}).then(r => r.json());
+        this.checked = data.enabled;
+    }
+
+    refreshBallDetectionStatus();
+});
+
+
+async function refreshDatasetStats(){
+    try{
+        const r = await fetch("/dataset/stats", {cache:"no-store"});
+        const data = await r.json();
+
+        if(data.success){
+            document.getElementById("datasetPlayerCount").innerHTML = data.stats.player || 0;
+            document.getElementById("datasetBallCount").innerHTML = data.stats.ball || 0;
+            document.getElementById("datasetCourtCount").innerHTML = data.stats.court || 0;
+            document.getElementById("datasetRacketCount").innerHTML = data.stats.racket || 0;
+            document.getElementById("datasetCustomCount").innerHTML = data.stats.custom || 0;
+        }
+    }catch(e){
+        document.getElementById("datasetCaptureStatus").innerHTML = "Dataset stats error.";
+    }
+}
+
+document.querySelectorAll(".dataset-capture-btn").forEach(function(btn){
+    btn.addEventListener("click", async function(){
+        const category = this.getAttribute("data-category");
+        const status = document.getElementById("datasetCaptureStatus");
+
+        status.innerHTML = "Capturing " + category + "...";
+
+        try{
+            const r = await fetch("/camera/{{ camera['id'] }}/dataset/" + category, {
+                method: "POST"
+            });
+
+            const data = await r.json();
+
+            if(data.success){
+                status.innerHTML = "Saved: " + data.filename;
+                refreshDatasetStats();
+            }else{
+                status.innerHTML = "Capture failed: " + data.error;
+            }
+        }catch(e){
+            status.innerHTML = "Capture request error.";
+        }
+    });
+});
+
+refreshDatasetStats();
+
+</script>
+{% endblock %}
