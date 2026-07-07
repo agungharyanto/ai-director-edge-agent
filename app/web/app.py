@@ -24,6 +24,9 @@ from app.modules.drivers.hikvision_driver import HikvisionDriver
 from app.web.routes.dataset_routes import dataset_bp
 from app.web.routes.camera_routes import register_camera_routes
 from app.web.routes.court_routes import register_court_routes
+from app.web.routes.inventory_routes import register_inventory_routes
+from app.web.routes.credential_routes import register_credential_routes
+from app.web.routes.event_routes import register_event_routes
 
 app = Flask(
     __name__,
@@ -36,6 +39,9 @@ app.config["SECRET_KEY"] = Config.SECRET_KEY
 app.register_blueprint(dataset_bp)
 register_camera_routes(app)
 register_court_routes(app)
+register_inventory_routes(app)
+register_credential_routes(app)
+register_event_routes(app)
 
 
 
@@ -133,11 +139,6 @@ def api_dashboard_stats():
         "event_total": event_repo.count()
     })
 
-
-@app.route("/event/reset", methods=["POST"])
-def event_reset():
-    EventRepository().reset()
-    return redirect(url_for("event"))
 
 
 @app.route("/discovery", methods=["GET", "POST"])
@@ -273,91 +274,6 @@ def discovery_import():
     return redirect(url_for("camera"))
 
 
-@app.route("/event")
-def event():
-    repo = EventRepository()
-
-    event_type = request.args.get("type") or None
-    level = request.args.get("level") or None
-    message = request.args.get("message") or None
-    start_time = request.args.get("start_time") or None
-    end_time = request.args.get("end_time") or None
-
-    if start_time:
-        start_time = start_time.replace("T", " ")
-
-    if end_time:
-        end_time = end_time.replace("T", " ")
-
-    events = repo.all(
-        limit=100,
-        event_type=event_type,
-        level=level,
-        message=message,
-        start_time=start_time,
-        end_time=end_time
-    )
-
-    return render_template(
-        "event/list.html",
-        events=events,
-        types=repo.distinct_types(),
-        levels=repo.distinct_levels(),
-        selected_type=event_type,
-        selected_level=level,
-        selected_message=message or "",
-        selected_start_time=start_time or "",
-        selected_end_time=end_time or ""
-    )
-
-@app.route("/credential")
-def credential():
-    repo = CredentialRepository()
-    credentials = repo.all()
-
-    return render_template(
-        "credential/list.html",
-        credentials=credentials
-    )
 
 
-@app.route("/credential/create", methods=["GET", "POST"])
-def credential_create():
-    if request.method == "POST":
-        CredentialRepository().create(
-            vendor=request.form.get("vendor"),
-            name=request.form.get("name"),
-            username=request.form.get("username"),
-            password=request.form.get("password"),
-            priority=int(request.form.get("priority") or 100),
-            enabled=1 if request.form.get("enabled") == "on" else 0
-        )
 
-        EventRepository().create(
-            "CREDENTIAL_CREATED",
-            "INFO",
-            f"Credential profile dibuat untuk vendor {request.form.get('vendor')}"
-        )
-
-        return redirect(url_for("credential"))
-
-    return render_template("credential/create.html")
-
-
-@app.route("/inventory")
-def inventory():
-    repo = DeviceRepository()
-    devices = repo.all()
-
-    return render_template(
-        "inventory/index.html",
-        devices=devices
-    )
-
-
-if __name__ == "__main__":
-    app.run(
-        host=Config.WEB_HOST,
-        port=Config.WEB_PORT,
-        debug=True
-    )
