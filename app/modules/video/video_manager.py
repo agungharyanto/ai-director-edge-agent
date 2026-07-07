@@ -91,6 +91,7 @@ class VideoManager:
             "player_count": self.pipeline.player_count(camera_id),
                 "ball_detection": self.pipeline.is_ball_enabled(camera_id),
                 "ball_count": self.pipeline.ball_count(camera_id),
+            "ai_coordinates": self.get_ai_coordinates(camera_id),
             "error": status["error"]
         }
 
@@ -116,6 +117,9 @@ class VideoManager:
 
     def is_ball_detection_enabled(self, camera_id):
         return self.pipeline.is_ball_enabled(camera_id)
+
+    def get_ai_coordinates(self, camera_id):
+        return self.pipeline.get_coordinates(camera_id)
 
     def mjpeg_generator(self, camera_id):
         while True:

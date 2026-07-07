@@ -3,6 +3,8 @@ import time
 from app.modules.detector.player_detector import PlayerDetector
 from app.modules.detector.ball_detector import BallDetector
 from app.modules.tracking.centroid_tracker import CentroidTracker
+from app.modules.court.court_mapper import CourtMapper
+from app.repositories.court_repository import CourtRepository
 
 
 class VisionPipeline:
@@ -21,6 +23,8 @@ class VisionPipeline:
         self.latest_ball_detections = {}
 
         self.player_trackers = {}
+        self.court_mapper = CourtMapper()
+        self.latest_coordinates = {}
 
     def get_player_detector(self):
         if self.player_detector is None:
@@ -68,6 +72,8 @@ class VisionPipeline:
         if self.is_ball_enabled(camera_id):
             output = self.process_ball(camera_id, output)
 
+        self.update_coordinates(camera_id)
+
         return output
 
     def process_player(self, camera_id, frame):
@@ -98,3 +104,49 @@ class VisionPipeline:
         detections = self.latest_ball_detections.get(camera_id, [])
 
         return self.get_ball_detector().draw(frame, detections)
+
+
+    def update_coordinates(self, camera_id):
+        calibration = CourtRepository().get_camera_calibration(camera_id)
+
+        if calibration is None:
+            self.latest_coordinates[camera_id] = {
+                "success": False,
+                "error": "Calibration belum tersedia",
+                "players": [],
+                "balls": []
+            }
+            return
+
+        players = []
+        for det in self.latest_player_detections.get(camera_id, []):
+            mapped = self.court_mapper.map_detection(calibration, det)
+            players.append({
+                "track_id": mapped.get("track_id"),
+                "confidence": mapped.get("confidence"),
+                "court_x": mapped.get("court_x"),
+                "court_y": mapped.get("court_y")
+            })
+
+        balls = []
+        for det in self.latest_ball_detections.get(camera_id, []):
+            mapped = self.court_mapper.map_detection(calibration, det)
+            balls.append({
+                "confidence": mapped.get("confidence"),
+                "court_x": mapped.get("court_x"),
+                "court_y": mapped.get("court_y")
+            })
+
+        self.latest_coordinates[camera_id] = {
+            "success": True,
+            "players": players,
+            "balls": balls
+        }
+
+    def get_coordinates(self, camera_id):
+        return self.latest_coordinates.get(camera_id, {
+            "success": False,
+            "error": "No coordinate data",
+            "players": [],
+            "balls": []
+        })

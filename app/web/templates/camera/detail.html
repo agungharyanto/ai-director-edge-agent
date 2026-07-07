@@ -267,6 +267,18 @@ Mode : <span id="calibrationModeLabel">VIEW</span>
 Loading stream status...
 </div>
 
+<hr>
+
+<div class="card">
+<div class="card-header">
+<h3 class="card-title">AI Court Coordinate</h3>
+</div>
+<div class="card-body">
+<pre id="aiCoordinateBox" class="small bg-light p-2 rounded border">Waiting coordinate...</pre>
+</div>
+</div>
+
+
 
 
 </div>
@@ -278,6 +290,42 @@ Loading stream status...
 
 {% block scripts %}
 <script>
+
+function renderAiCoordinates(data){
+    const box = document.getElementById("aiCoordinateBox");
+    if(!box) return;
+
+    const c = data.ai_coordinates || {};
+
+    if(!c.success){
+        box.innerHTML = "Coordinate: " + (c.error || "not ready");
+        return;
+    }
+
+    let lines = [];
+
+    lines.push("Players:");
+    if(c.players.length === 0){
+        lines.push("  - none");
+    }else{
+        c.players.forEach(function(p){
+            lines.push("  Player #" + p.track_id + "  x=" + p.court_x + "  y=" + p.court_y + "  conf=" + p.confidence);
+        });
+    }
+
+    lines.push("");
+    lines.push("Ball:");
+    if(c.balls.length === 0){
+        lines.push("  - none");
+    }else{
+        c.balls.forEach(function(b){
+            lines.push("  Ball  x=" + b.court_x + "  y=" + b.court_y + "  conf=" + b.confidence);
+        });
+    }
+
+    box.innerHTML = lines.join("\n");
+}
+
 
 function setSwitchState(inputId, enabled){
     const el = document.getElementById(inputId);
@@ -349,6 +397,8 @@ async function refreshStreamStatus(){
 
         lastStreamOnline = s.online;
 
+        renderAiCoordinates(s);
+
         document.getElementById("streamStatus").innerHTML =
             "Online : " + s.online +
             "<br>Stale : " + s.stale +
@@ -361,6 +411,8 @@ async function refreshStreamStatus(){
             "<br>Error : " + (s.error || "-");
 
     }catch(e){
+        renderAiCoordinates(s);
+
         document.getElementById("streamStatus").innerHTML = "Status error";
     }
 }
