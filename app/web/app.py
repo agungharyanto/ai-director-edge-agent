@@ -7,7 +7,6 @@ from app.modules.provisioning.verify_engine import VerifyEngine
 from app.modules.overlay.overlay_engine import OverlayEngine
 from flask import Response
 from app.modules.video.video_manager import VideoManager
-from app.modules.dataset.dataset_manager import DatasetManager
 
 from app.core.config import Config
 from app.repositories.system_repository import SystemRepository
@@ -22,6 +21,7 @@ from app.repositories.discovery_repository import DiscoveryRepository
 from app.repositories.device_repository import DeviceRepository
 from app.repositories.credential_repository import CredentialRepository
 from app.modules.drivers.hikvision_driver import HikvisionDriver
+from app.web.routes.dataset_routes import dataset_bp
 
 app = Flask(
     __name__,
@@ -30,6 +30,8 @@ app = Flask(
 )
 
 app.config["SECRET_KEY"] = Config.SECRET_KEY
+
+app.register_blueprint(dataset_bp)
 
 
 
@@ -202,28 +204,6 @@ def camera_ball_detection_status(camera_id):
 
 
 
-@app.route("/camera/<int:camera_id>/dataset/<category>", methods=["POST"])
-def camera_dataset_capture(camera_id, category):
-    vm = VideoManager()
-    frame = vm.get_frame(camera_id)
-
-    result = DatasetManager().capture(
-        camera_id=camera_id,
-        frame=frame,
-        category=category
-    )
-
-    status = 200 if result.get("success") else 400
-
-    return jsonify(result), status
-
-
-@app.route("/dataset/stats")
-def dataset_stats():
-    return jsonify({
-        "success": True,
-        "stats": DatasetManager().stats()
-    })
 
 
 @app.route("/robots.txt")
