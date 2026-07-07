@@ -176,6 +176,30 @@ def camera_player_detection_status(camera_id):
     })
 
 
+
+@app.route("/camera/<int:camera_id>/ball-detection/toggle", methods=["POST"])
+def camera_ball_detection_toggle(camera_id):
+    vm = VideoManager()
+    enabled = vm.toggle_ball_detection(camera_id)
+
+    return jsonify({
+        "success": True,
+        "camera_id": camera_id,
+        "enabled": enabled
+    })
+
+
+@app.route("/camera/<int:camera_id>/ball-detection/status")
+def camera_ball_detection_status(camera_id):
+    vm = VideoManager()
+
+    return jsonify({
+        "success": True,
+        "camera_id": camera_id,
+        "enabled": vm.is_ball_detection_enabled(camera_id)
+    })
+
+
 @app.route("/robots.txt")
 def robots_txt():
     return Response(

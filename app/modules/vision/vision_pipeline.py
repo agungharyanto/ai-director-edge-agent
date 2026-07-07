@@ -1,6 +1,7 @@
 import time
 
 from app.modules.detector.player_detector import PlayerDetector
+from app.modules.detector.ball_detector import BallDetector
 from app.modules.tracking.centroid_tracker import CentroidTracker
 
 
@@ -8,21 +9,32 @@ class VisionPipeline:
 
     def __init__(self):
         self.player_detector = None
+        self.ball_detector = None
+
         self.player_enabled = {}
+        self.ball_enabled = {}
+
         self.last_player_detection_at = {}
+        self.last_ball_detection_at = {}
+
         self.latest_player_detections = {}
+        self.latest_ball_detections = {}
+
         self.player_trackers = {}
 
     def get_player_detector(self):
         if self.player_detector is None:
             self.player_detector = PlayerDetector()
-
         return self.player_detector
+
+    def get_ball_detector(self):
+        if self.ball_detector is None:
+            self.ball_detector = BallDetector()
+        return self.ball_detector
 
     def get_player_tracker(self, camera_id):
         if camera_id not in self.player_trackers:
             self.player_trackers[camera_id] = CentroidTracker()
-
         return self.player_trackers[camera_id]
 
     def toggle_player(self, camera_id):
@@ -30,17 +42,31 @@ class VisionPipeline:
         self.player_enabled[camera_id] = not current
         return self.player_enabled[camera_id]
 
+    def toggle_ball(self, camera_id):
+        current = self.ball_enabled.get(camera_id, False)
+        self.ball_enabled[camera_id] = not current
+        return self.ball_enabled[camera_id]
+
     def is_player_enabled(self, camera_id):
         return self.player_enabled.get(camera_id, False)
 
+    def is_ball_enabled(self, camera_id):
+        return self.ball_enabled.get(camera_id, False)
+
     def player_count(self, camera_id):
         return len(self.latest_player_detections.get(camera_id, []))
+
+    def ball_count(self, camera_id):
+        return len(self.latest_ball_detections.get(camera_id, []))
 
     def process(self, camera_id, frame):
         output = frame
 
         if self.is_player_enabled(camera_id):
             output = self.process_player(camera_id, output)
+
+        if self.is_ball_enabled(camera_id):
+            output = self.process_ball(camera_id, output)
 
         return output
 
@@ -58,3 +84,17 @@ class VisionPipeline:
         detections = self.latest_player_detections.get(camera_id, [])
 
         return self.get_player_detector().draw(frame, detections)
+
+    def process_ball(self, camera_id, frame):
+        now = time.time()
+        last = self.last_ball_detection_at.get(camera_id, 0)
+
+        if now - last >= 0.25:
+            detections = self.get_ball_detector().detect(frame.copy())
+
+            self.latest_ball_detections[camera_id] = detections
+            self.last_ball_detection_at[camera_id] = now
+
+        detections = self.latest_ball_detections.get(camera_id, [])
+
+        return self.get_ball_detector().draw(frame, detections)

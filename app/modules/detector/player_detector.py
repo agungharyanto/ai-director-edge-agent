@@ -5,7 +5,7 @@ from ultralytics import YOLO
 class PlayerDetector:
     PERSON_CLASS_ID = 0
 
-    def __init__(self, model_name="yolov8n.pt", confidence=0.35):
+    def __init__(self, model_name="yolov8n.pt", confidence=0.60):
         self.model = YOLO(model_name)
         self.confidence = confidence
         try:
@@ -32,6 +32,7 @@ class PlayerDetector:
 
                 x1, y1, x2, y2 = box.xyxy[0].tolist()
 
+	
                 detections.append({
                     "label": "player",
                     "confidence": round(conf, 3),

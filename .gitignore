@@ -19,3 +19,4 @@ storage/database/*.db
 !storage/temp/.gitkeep
 !storage/database/.gitkeep
 .venv/
+yolov8n.pt
