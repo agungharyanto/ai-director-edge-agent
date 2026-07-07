@@ -54,7 +54,8 @@ class PlayerDetector:
             x2 = det["x2"]
             y2 = det["y2"]
 
-            label = f"Player #{idx} {det['confidence']}"
+            player_id = det.get("track_id", idx)
+            label = f"Player #{player_id} {det['confidence']}"
 
             cv2.rectangle(output, (x1, y1), (x2, y2), (0, 255, 0), 2)
             cv2.putText(

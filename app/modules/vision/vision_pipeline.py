@@ -1,6 +1,7 @@
 import time
 
 from app.modules.detector.player_detector import PlayerDetector
+from app.modules.tracking.centroid_tracker import CentroidTracker
 
 
 class VisionPipeline:
@@ -10,12 +11,19 @@ class VisionPipeline:
         self.player_enabled = {}
         self.last_player_detection_at = {}
         self.latest_player_detections = {}
+        self.player_trackers = {}
 
     def get_player_detector(self):
         if self.player_detector is None:
             self.player_detector = PlayerDetector()
 
         return self.player_detector
+
+    def get_player_tracker(self, camera_id):
+        if camera_id not in self.player_trackers:
+            self.player_trackers[camera_id] = CentroidTracker()
+
+        return self.player_trackers[camera_id]
 
     def toggle_player(self, camera_id):
         current = self.player_enabled.get(camera_id, False)
@@ -42,6 +50,8 @@ class VisionPipeline:
 
         if now - last >= 1.0:
             detections = self.get_player_detector().detect(frame.copy())
+            detections = self.get_player_tracker(camera_id).update(detections)
+
             self.latest_player_detections[camera_id] = detections
             self.last_player_detection_at[camera_id] = now
 
