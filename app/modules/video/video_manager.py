@@ -76,6 +76,8 @@ class VideoManager:
                 "player_count": self.pipeline.player_count(camera_id),
                 "ball_detection": self.pipeline.is_ball_enabled(camera_id),
                 "ball_count": self.pipeline.ball_count(camera_id),
+                "ai_coordinates": self.get_ai_coordinates(camera_id),
+                "rally": self.get_rally(camera_id),
                 "error": "Worker belum berjalan"
             }
 
@@ -89,9 +91,10 @@ class VideoManager:
             "motion": worker.motion_count if worker else 0,
             "player_detection": self.pipeline.is_player_enabled(camera_id),
             "player_count": self.pipeline.player_count(camera_id),
-                "ball_detection": self.pipeline.is_ball_enabled(camera_id),
-                "ball_count": self.pipeline.ball_count(camera_id),
+            "ball_detection": self.pipeline.is_ball_enabled(camera_id),
+            "ball_count": self.pipeline.ball_count(camera_id),
             "ai_coordinates": self.get_ai_coordinates(camera_id),
+            "rally": self.get_rally(camera_id),
             "error": status["error"]
         }
 
@@ -126,6 +129,9 @@ class VideoManager:
 
     def get_ball_trajectory(self, camera_id):
         return self.pipeline.get_ball_trajectory(camera_id)
+
+    def get_rally(self, camera_id):
+        return self.pipeline.get_rally(camera_id)
 
     def mjpeg_generator(self, camera_id):
         while True:
