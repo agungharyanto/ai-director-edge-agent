@@ -25,6 +25,8 @@ from app.web.routes.dataset_routes import dataset_bp
 from app.web.routes.camera_routes import register_camera_routes
 from app.web.routes.court_routes import register_court_routes
 from app.web.routes.inventory_routes import register_inventory_routes
+from app.web.routes.health_routes import register_health_routes
+from app.web.routes.discovery_routes import register_discovery_routes
 from app.web.routes.credential_routes import register_credential_routes
 from app.web.routes.event_routes import register_event_routes
 
@@ -40,6 +42,8 @@ app.register_blueprint(dataset_bp)
 register_camera_routes(app)
 register_court_routes(app)
 register_inventory_routes(app)
+register_health_routes(app)
+register_discovery_routes(app)
 register_credential_routes(app)
 register_event_routes(app)
 
@@ -83,11 +87,6 @@ def dashboard():
         health=health
     )
 
-@app.route("/health/collect")
-def health_collect():
-    HealthService().collect()
-    return redirect(url_for("dashboard"))
-
 
 @app.route("/robots.txt")
 def robots_txt():
@@ -95,35 +94,6 @@ def robots_txt():
         "User-agent: *\nDisallow:\n",
         mimetype="text/plain"
     )
-
-
-@app.route("/api/health")
-def api_health():
-    HealthService().collect()
-
-    latest = HealthRepository().latest()
-    history_rows = HealthRepository().history(30)
-
-    history = []
-    for row in reversed(history_rows):
-        history.append({
-            "cpu": row["cpu"],
-            "ram": row["ram"],
-            "disk": row["disk"],
-            "created_at": row["created_at"]
-        })
-
-    return jsonify({
-        "cpu": latest["cpu"],
-        "ram": latest["ram"],
-        "disk": latest["disk"],
-        "temperature": latest["temperature"],
-        "created_at": latest["created_at"],
-        "history": history
-    })
-
-
-
 
 
 
@@ -141,56 +111,6 @@ def api_dashboard_stats():
 
 
 
-@app.route("/discovery", methods=["GET", "POST"])
-def discovery():
-    network = request.form.get("network", "192.168.1.0/24")
-    job = DiscoveryRepository().latest_job()
-
-    if request.method == "POST":
-        job_id = DiscoveryService().start_scan(network)
-        return redirect(url_for("discovery", job_id=job_id))
-
-    job_id = request.args.get("job_id")
-
-    if job_id:
-        job = DiscoveryRepository().get_job(job_id)
-
-    return render_template(
-        "discovery/index.html",
-        network=network,
-        job=job
-    )
-
-
-@app.route("/api/discovery/<int:job_id>")
-def api_discovery_job(job_id):
-    repo = DiscoveryRepository()
-    job = repo.get_job(job_id)
-    results = repo.results(job_id)
-
-    return jsonify({
-        "job": {
-            "id": job["id"],
-            "network": job["network"],
-            "status": job["status"],
-            "total_hosts": job["total_hosts"],
-            "scanned_hosts": job["scanned_hosts"],
-            "found_hosts": job["found_hosts"],
-            "started_at": job["started_at"],
-            "finished_at": job["finished_at"]
-        },
-        "results": [
-            {
-                "ip_address": row["ip_address"],
-                "ping_status": row["ping_status"],
-                "open_ports": row["open_ports"],
-                "vendor": row["vendor"],
-                "model": row["model"],
-                "confidence": row["confidence"]
-            }
-            for row in results
-        ]
-    })
 
 
 @app.route("/discovery/import", methods=["POST"])
