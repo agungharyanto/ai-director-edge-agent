@@ -121,6 +121,9 @@ class VideoManager:
     def get_ai_coordinates(self, camera_id):
         return self.pipeline.get_coordinates(camera_id)
 
+    def get_object_history(self, camera_id):
+        return self.pipeline.get_object_history(camera_id)
+
     def mjpeg_generator(self, camera_id):
         while True:
             frame = self.get_frame(camera_id)

@@ -14,6 +14,16 @@ from app.modules.drivers.hikvision_driver import HikvisionDriver
 
 def register_camera_routes(app):
 
+
+    @app.route("/camera/<int:camera_id>/object-history")
+    def camera_object_history(camera_id):
+        vm = VideoManager()
+
+        return jsonify(
+            vm.get_object_history(camera_id)
+        )
+
+
     @app.route("/camera/<int:camera_id>/verify", methods=["POST"])
     def verify_camera(camera_id):
         camera_repo = CameraRepository()

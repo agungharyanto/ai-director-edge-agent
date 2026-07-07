@@ -5,6 +5,7 @@ from app.modules.detector.ball_detector import BallDetector
 from app.modules.tracking.centroid_tracker import CentroidTracker
 from app.modules.court.court_mapper import CourtMapper
 from app.repositories.court_repository import CourtRepository
+from app.modules.history.object_history import ObjectHistory
 
 
 class VisionPipeline:
@@ -25,6 +26,7 @@ class VisionPipeline:
         self.player_trackers = {}
         self.court_mapper = CourtMapper()
         self.latest_coordinates = {}
+        self.object_history = ObjectHistory()
 
     def get_player_detector(self):
         if self.player_detector is None:
@@ -73,6 +75,7 @@ class VisionPipeline:
             output = self.process_ball(camera_id, output)
 
         self.update_coordinates(camera_id)
+        self.update_history(camera_id)
 
         return output
 
@@ -150,3 +153,28 @@ class VisionPipeline:
             "players": [],
             "balls": []
         })
+
+
+    def update_history(self, camera_id):
+        coordinates = self.latest_coordinates.get(camera_id)
+
+        if not coordinates or not coordinates.get("success"):
+            return
+
+        self.object_history.add_players(
+            camera_id,
+            coordinates.get("players", [])
+        )
+
+        self.object_history.add_balls(
+            camera_id,
+            coordinates.get("balls", [])
+        )
+
+    def get_object_history(self, camera_id):
+        return {
+            "success": True,
+            "players": self.object_history.get_players(camera_id),
+            "ball": self.object_history.get_ball(camera_id),
+            "stats": self.object_history.stats(camera_id)
+        }

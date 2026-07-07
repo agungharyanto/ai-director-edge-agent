@@ -281,6 +281,18 @@ Loading stream status...
 
 
 
+
+<hr>
+
+<div class="card">
+<div class="card-header">
+<h3 class="card-title">Object History</h3>
+</div>
+<div class="card-body">
+<pre id="objectHistoryBox" class="small bg-light p-2 rounded border">Waiting history...</pre>
+</div>
+</div>
+
 </div>
 </div>
 </div>
@@ -290,6 +302,54 @@ Loading stream status...
 
 {% block scripts %}
 <script>
+
+async function refreshObjectHistory(){
+    const box = document.getElementById("objectHistoryBox");
+    if(!box) return;
+
+    try{
+        const r = await fetch("/camera/{{ camera['id'] }}/object-history", {
+            cache: "no-store"
+        });
+
+        const data = await r.json();
+
+        if(!data.success){
+            box.innerHTML = "History not ready";
+            return;
+        }
+
+        let lines = [];
+        lines.push("Stats:");
+        lines.push("  Player Tracks : " + data.stats.player_tracks);
+        lines.push("  Player Points : " + data.stats.player_points);
+        lines.push("  Ball Points   : " + data.stats.ball_points);
+        lines.push("");
+
+        lines.push("Players:");
+        data.players.forEach(function(player){
+            lines.push("  Player #" + player.track_id + " points=" + player.points.length);
+            const last = player.points[player.points.length - 1];
+            if(last){
+                lines.push("    last x=" + last.court_x + " y=" + last.court_y);
+            }
+        });
+
+        lines.push("");
+        lines.push("Ball:");
+        lines.push("  points=" + data.ball.length);
+        const lastBall = data.ball[data.ball.length - 1];
+        if(lastBall){
+            lines.push("  last x=" + lastBall.court_x + " y=" + lastBall.court_y);
+        }
+
+        box.innerHTML = lines.join("\n");
+
+    }catch(e){
+        box.innerHTML = "History request error.";
+    }
+}
+
 
 function renderAiCoordinates(data){
     const box = document.getElementById("aiCoordinateBox");
@@ -668,9 +728,11 @@ window.addEventListener("resize", resizeCanvas);
 
 clockTimer = setInterval(updateOverlayClock, 1000);
 statusTimer = setInterval(refreshStreamStatus, 2000);
+setInterval(refreshObjectHistory, 2000);
 
 updateOverlayClock();
 refreshStreamStatus();
+refreshObjectHistory();
 refreshPlayerDetectionStatus();
 refreshBallDetectionStatus();
 resizeCanvas();
