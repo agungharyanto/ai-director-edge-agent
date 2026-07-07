@@ -1,4 +1,5 @@
 import uuid
+import cv2
 
 from flask import Flask, render_template, request, redirect, url_for, jsonify, Response
 from app.modules.provisioning.profile_engine import ProfileEngine
@@ -6,6 +7,8 @@ from app.modules.provisioning.verify_engine import VerifyEngine
 from app.modules.overlay.overlay_engine import OverlayEngine
 from flask import Response
 from app.modules.video.video_manager import VideoManager
+from app.modules.detector.player_detector import PlayerDetector
+from app.modules.vision.perspective_transformer import PerspectiveTransformer
 
 from app.core.config import Config
 from app.repositories.system_repository import SystemRepository
@@ -28,6 +31,8 @@ app = Flask(
 )
 
 app.config["SECRET_KEY"] = Config.SECRET_KEY
+
+PLAYER_DETECTOR = PlayerDetector()
 
 
 @app.route("/")
@@ -138,12 +143,70 @@ def camera_stream_status(camera_id):
 
 @app.route("/camera/<int:camera_id>/stream-stop", methods=["POST"])
 def camera_stream_stop(camera_id):
+    # Sprint 39 safety:
+    # Jangan stop worker RTSP otomatis dari browser.
+    # Stop mendadak saat MJPEG generator masih berjalan bisa memicu native crash FFmpeg/OpenCV.
+    return jsonify({
+        "success": True,
+        "camera_id": camera_id,
+        "stopped": False,
+        "message": "Stream worker kept alive"
+    })
+
+
+
+@app.route("/camera/<int:camera_id>/court-preview")
+def camera_court_preview(camera_id):
+    camera_repo = CameraRepository()
+    court_repo = CourtRepository()
+
+    camera_data = camera_repo.find(camera_id)
+    calibration = court_repo.get_camera_calibration(camera_id)
+
+    if camera_data is None:
+        return "Camera tidak ditemukan", 404
+
+    if calibration is None:
+        return "Calibration belum tersedia", 404
+
+    image = PerspectiveTransformer().build_preview(
+        camera_data["rtsp_url"],
+        calibration
+    )
+
+    if image is None:
+        return "Gagal mengambil frame RTSP", 500
+
+    return Response(
+        image,
+        mimetype="image/jpeg"
+    )
+
+
+
+
+
+
+@app.route("/camera/<int:camera_id>/player-detection/toggle", methods=["POST"])
+def camera_player_detection_toggle(camera_id):
     vm = VideoManager()
-    vm.stop_camera(camera_id)
+    enabled = vm.toggle_player_detection(camera_id)
 
     return jsonify({
         "success": True,
-        "camera_id": camera_id
+        "camera_id": camera_id,
+        "enabled": enabled
+    })
+
+
+@app.route("/camera/<int:camera_id>/player-detection/status")
+def camera_player_detection_status(camera_id):
+    vm = VideoManager()
+
+    return jsonify({
+        "success": True,
+        "camera_id": camera_id,
+        "enabled": vm.is_player_detection_enabled(camera_id)
     })
 
 

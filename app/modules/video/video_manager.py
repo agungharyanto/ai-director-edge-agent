@@ -3,6 +3,7 @@ import cv2
 
 from app.modules.video.frame_buffer import FrameBuffer
 from app.modules.video.camera_worker import CameraWorker
+from app.modules.detector.player_detector import PlayerDetector
 
 
 class VideoManager:
@@ -14,6 +15,10 @@ class VideoManager:
             cls._instance = super(VideoManager, cls).__new__(cls)
             cls._instance.workers = {}
             cls._instance.buffers = {}
+            cls._instance.player_detection_enabled = {}
+            cls._instance.player_detector = None
+            cls._instance.last_player_detection_at = {}
+            cls._instance.latest_player_detections = {}
 
         return cls._instance
 
@@ -69,6 +74,8 @@ class VideoManager:
                 "last_update": None,
                 "frame_count": 0,
                 "motion": 0,
+                "player_detection": self.is_player_detection_enabled(camera_id),
+                "player_count": 0,
                 "error": "Worker belum berjalan"
             }
 
@@ -79,6 +86,8 @@ class VideoManager:
             "last_update": status["last_update"],
             "frame_count": status["frame_count"],
             "motion": worker.motion_count if worker else 0,
+            "player_detection": self.is_player_detection_enabled(camera_id),
+            "player_count": len(self.latest_player_detections.get(camera_id, [])),
             "error": status["error"]
         }
 
@@ -93,6 +102,36 @@ class VideoManager:
 
         return cv2.resize(frame, (width, height))
 
+    def get_player_detector(self):
+        if self.player_detector is None:
+            self.player_detector = PlayerDetector()
+
+        return self.player_detector
+
+    def toggle_player_detection(self, camera_id):
+        current = self.player_detection_enabled.get(camera_id, False)
+        self.player_detection_enabled[camera_id] = not current
+        return self.player_detection_enabled[camera_id]
+
+    def is_player_detection_enabled(self, camera_id):
+        return self.player_detection_enabled.get(camera_id, False)
+
+    def apply_player_detection(self, camera_id, frame):
+        if not self.is_player_detection_enabled(camera_id):
+            return frame
+
+        now = time.time()
+        last = self.last_player_detection_at.get(camera_id, 0)
+
+        if now - last >= 1.0:
+            detections = self.get_player_detector().detect(frame.copy())
+            self.latest_player_detections[camera_id] = detections
+            self.last_player_detection_at[camera_id] = now
+
+        detections = self.latest_player_detections.get(camera_id, [])
+
+        return self.get_player_detector().draw(frame, detections)
+
     def mjpeg_generator(self, camera_id):
         while True:
             frame = self.get_frame(camera_id)
@@ -102,6 +141,7 @@ class VideoManager:
                 continue
 
             frame = self.resize_frame(frame, width=960)
+            frame = self.apply_player_detection(camera_id, frame)
 
             ok, jpg = cv2.imencode(
                 ".jpg",

@@ -60,6 +60,16 @@ Reset Points
 Save Calibration
 </button>
 
+<hr>
+
+<button id="togglePlayerDetectionBtn" class="btn btn-dark btn-block" type="button">
+Toggle Player Detection
+</button>
+
+<div id="playerDetectionStatus" class="small text-muted mt-2">
+Player Detection: loading...
+</div>
+
 <div id="calibrationInfo" class="small text-muted mt-2">
 Calibration: loading...
 </div>
@@ -130,6 +140,8 @@ Mode : <span id="calibrationModeLabel">VIEW</span>
 Loading stream status...
 </div>
 
+
+
 </div>
 </div>
 </div>
@@ -191,6 +203,8 @@ async function refreshStreamStatus(){
             "Online : " + s.online +
             "<br>Frame : " + s.frame_count +
             "<br>Motion : " + s.motion +
+            "<br>Player Detection : " + s.player_detection +
+            "<br>Player Count : " + s.player_count +
             "<br>Error : " + (s.error || "-");
 
     }catch(e){
@@ -413,16 +427,45 @@ statusTimer = setInterval(refreshStreamStatus, 2000);
 
 updateOverlayClock();
 refreshStreamStatus();
+refreshPlayerDetectionStatus();
 resizeCanvas();
 loadCalibration();
 
-window.addEventListener("beforeunload", stopStream);
-window.addEventListener("pagehide", stopStream);
 
-document.addEventListener("visibilitychange", function(){
-    if(document.visibilityState === "hidden"){
-        stopStream();
+
+
+
+
+
+async function refreshPlayerDetectionStatus(){
+    try{
+        const r = await fetch("/camera/{{ camera['id'] }}/player-detection/status", {
+            cache: "no-store"
+        });
+
+        const s = await r.json();
+
+        document.getElementById("playerDetectionStatus").innerHTML =
+            "Player Detection: " + (s.enabled ? "ON" : "OFF");
+
+    }catch(e){
+        document.getElementById("playerDetectionStatus").innerHTML =
+            "Player Detection: status error";
     }
+}
+
+document.getElementById("togglePlayerDetectionBtn").addEventListener("click", async function(){
+    const r = await fetch("/camera/{{ camera['id'] }}/player-detection/toggle", {
+        method: "POST"
+    });
+
+    const s = await r.json();
+
+    document.getElementById("playerDetectionStatus").innerHTML =
+        "Player Detection: " + (s.enabled ? "ON" : "OFF");
 });
+
+
+
 </script>
 {% endblock %}
