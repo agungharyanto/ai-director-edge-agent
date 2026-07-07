@@ -6,6 +6,7 @@ from app.modules.tracking.centroid_tracker import CentroidTracker
 from app.modules.court.court_mapper import CourtMapper
 from app.repositories.court_repository import CourtRepository
 from app.modules.history.object_history import ObjectHistory
+from app.modules.trajectory.ball_trajectory import BallTrajectory
 
 
 class VisionPipeline:
@@ -27,6 +28,7 @@ class VisionPipeline:
         self.court_mapper = CourtMapper()
         self.latest_coordinates = {}
         self.object_history = ObjectHistory()
+        self.ball_trajectory = BallTrajectory()
 
     def get_player_detector(self):
         if self.player_detector is None:
@@ -178,3 +180,8 @@ class VisionPipeline:
             "ball": self.object_history.get_ball(camera_id),
             "stats": self.object_history.stats(camera_id)
         }
+
+
+    def get_ball_trajectory(self, camera_id):
+        ball_points = self.object_history.get_ball(camera_id)
+        return self.ball_trajectory.analyze(ball_points)

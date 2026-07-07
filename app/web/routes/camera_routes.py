@@ -15,6 +15,18 @@ from app.modules.drivers.hikvision_driver import HikvisionDriver
 def register_camera_routes(app):
 
 
+    @app.route("/camera/<int:camera_id>/ball-trajectory")
+    def camera_ball_trajectory(camera_id):
+        vm = VideoManager()
+
+        return jsonify({
+            "success": True,
+            "camera_id": camera_id,
+            "trajectory": vm.get_ball_trajectory(camera_id)
+        })
+
+
+
     @app.route("/camera/<int:camera_id>/object-history")
     def camera_object_history(camera_id):
         vm = VideoManager()
