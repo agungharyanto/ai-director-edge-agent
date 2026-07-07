@@ -78,6 +78,7 @@ class VideoManager:
                 "ball_count": self.pipeline.ball_count(camera_id),
                 "ai_coordinates": self.get_ai_coordinates(camera_id),
                 "rally": self.get_rally(camera_id),
+                "director": self.get_director_decision(camera_id),
                 "error": "Worker belum berjalan"
             }
 
@@ -95,6 +96,7 @@ class VideoManager:
             "ball_count": self.pipeline.ball_count(camera_id),
             "ai_coordinates": self.get_ai_coordinates(camera_id),
             "rally": self.get_rally(camera_id),
+                "director": self.get_director_decision(camera_id),
             "error": status["error"]
         }
 
@@ -132,6 +134,9 @@ class VideoManager:
 
     def get_rally(self, camera_id):
         return self.pipeline.get_rally(camera_id)
+
+    def get_director_decision(self, camera_id):
+        return self.pipeline.get_director_decision(camera_id)
 
     def mjpeg_generator(self, camera_id):
         while True:

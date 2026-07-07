@@ -8,6 +8,7 @@ from app.repositories.court_repository import CourtRepository
 from app.modules.history.object_history import ObjectHistory
 from app.modules.trajectory.ball_trajectory import BallTrajectory
 from app.modules.rally.rally_engine import RallyEngine
+from app.modules.director.ai_director import AIDirector
 
 
 class VisionPipeline:
@@ -33,6 +34,8 @@ class VisionPipeline:
         self.ball_trajectory = BallTrajectory()
         self.rally_engine = RallyEngine()
         self.latest_rally = {}
+        self.ai_director = AIDirector()
+        self.latest_director_decision = {}
 
     def get_player_detector(self):
         if self.player_detector is None:
@@ -83,6 +86,7 @@ class VisionPipeline:
         self.update_coordinates(camera_id)
         self.update_history(camera_id)
         self.update_rally(camera_id)
+        self.update_director(camera_id)
 
         return output
 
@@ -200,4 +204,20 @@ class VisionPipeline:
             "state": "WAITING_BALL",
             "active": False,
             "speed": 0
+        })
+
+
+    def update_director(self, camera_id):
+        rally = self.get_rally(camera_id)
+        trajectory = self.get_ball_trajectory(camera_id)
+
+        self.latest_director_decision[camera_id] = self.ai_director.decide(
+            rally,
+            trajectory
+        )
+
+    def get_director_decision(self, camera_id):
+        return self.latest_director_decision.get(camera_id, {
+            "action": "WAIT",
+            "reason": "not_ready"
         })
