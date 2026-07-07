@@ -15,6 +15,18 @@ from app.modules.drivers.hikvision_driver import HikvisionDriver
 def register_camera_routes(app):
 
 
+    @app.route("/camera/<int:camera_id>/virtual-ptz")
+    def camera_virtual_ptz(camera_id):
+        vm = VideoManager()
+
+        return jsonify({
+            "success": True,
+            "camera_id": camera_id,
+            "window": vm.get_virtual_ptz_window(camera_id)
+        })
+
+
+
     @app.route("/camera/<int:camera_id>/director")
     def camera_director(camera_id):
         vm = VideoManager()

@@ -9,6 +9,7 @@ from app.modules.history.object_history import ObjectHistory
 from app.modules.trajectory.ball_trajectory import BallTrajectory
 from app.modules.rally.rally_engine import RallyEngine
 from app.modules.director.ai_director import AIDirector
+from app.modules.ptz.virtual_ptz import VirtualPTZ
 
 
 class VisionPipeline:
@@ -36,6 +37,8 @@ class VisionPipeline:
         self.latest_rally = {}
         self.ai_director = AIDirector()
         self.latest_director_decision = {}
+        self.virtual_ptz = VirtualPTZ()
+        self.latest_ptz_window = {}
 
     def get_player_detector(self):
         if self.player_detector is None:
@@ -87,6 +90,7 @@ class VisionPipeline:
         self.update_history(camera_id)
         self.update_rally(camera_id)
         self.update_director(camera_id)
+        self.update_virtual_ptz(camera_id)
 
         return output
 
@@ -221,3 +225,17 @@ class VisionPipeline:
             "action": "WAIT",
             "reason": "not_ready"
         })
+
+
+    def update_virtual_ptz(self, camera_id):
+        director = self.get_director_decision(camera_id)
+        self.latest_ptz_window[camera_id] = self.virtual_ptz.decide_window(
+            camera_id,
+            director
+        )
+
+    def get_virtual_ptz_window(self, camera_id):
+        return self.latest_ptz_window.get(
+            camera_id,
+            self.virtual_ptz.default_window()
+        )
