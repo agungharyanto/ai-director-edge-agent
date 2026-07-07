@@ -4,6 +4,79 @@
 
 {% block content %}
 
+<style>
+.offline-pulse{
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    z-index:40;
+    background:rgba(220,53,69,.92);
+    color:white;
+    padding:18px 32px;
+    border-radius:10px;
+    font-size:24px;
+    font-weight:bold;
+    letter-spacing:2px;
+    display:none;
+    animation:offlinePulse 1s infinite;
+}
+@keyframes offlinePulse{
+    0%{opacity:.45; transform:translate(-50%,-50%) scale(.98);}
+    50%{opacity:1; transform:translate(-50%,-50%) scale(1.04);}
+    100%{opacity:.45; transform:translate(-50%,-50%) scale(.98);}
+}
+</style>
+
+
+<style>
+.ai-switch-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-top:12px;
+}
+.ai-switch{
+    position:relative;
+    width:58px;
+    height:30px;
+}
+.ai-switch input{
+    opacity:0;
+    width:0;
+    height:0;
+}
+.ai-slider{
+    position:absolute;
+    cursor:pointer;
+    top:0;
+    left:0;
+    right:0;
+    bottom:0;
+    background:#6c757d;
+    transition:.25s;
+    border-radius:30px;
+}
+.ai-slider:before{
+    position:absolute;
+    content:"";
+    height:22px;
+    width:22px;
+    left:4px;
+    bottom:4px;
+    background:white;
+    transition:.25s;
+    border-radius:50%;
+}
+.ai-switch input:checked + .ai-slider{
+    background:#28a745;
+}
+.ai-switch input:checked + .ai-slider:before{
+    transform:translateX(28px);
+}
+</style>
+
+
 <div class="row">
 <div class="col-md-4">
 <div class="card">
@@ -62,12 +135,26 @@ Save Calibration
 
 <hr>
 
-<button id="togglePlayerDetectionBtn" class="btn btn-dark btn-block" type="button">
-Toggle Player Detection
-</button>
-
+<div class="ai-switch-row">
+    <b>Player Detection</b>
+    <label class="ai-switch">
+        <input id="playerDetectionSwitch" type="checkbox">
+        <span class="ai-slider"></span>
+    </label>
+</div>
 <div id="playerDetectionStatus" class="small text-muted mt-2">
 Player Detection: loading...
+</div>
+
+<div class="ai-switch-row">
+    <b>Ball Detection</b>
+    <label class="ai-switch">
+        <input id="ballDetectionSwitch" type="checkbox">
+        <span class="ai-slider"></span>
+    </label>
+</div>
+<div id="ballDetectionStatus" class="small text-muted mt-2">
+Ball Detection: loading...
 </div>
 
 <div id="calibrationInfo" class="small text-muted mt-2">
@@ -93,6 +180,10 @@ Calibration: loading...
     class="img-fluid rounded border"
     style="width:100%;display:block;"
 >
+
+<div id="offlinePulse" class="offline-pulse">
+OFFLINE
+</div>
 
 <canvas
     id="calibrationCanvas"
@@ -151,9 +242,18 @@ Loading stream status...
 
 {% block scripts %}
 <script>
+
+function setSwitchState(inputId, enabled){
+    const el = document.getElementById(inputId);
+    if(el){
+        el.checked = enabled;
+    }
+}
+
 let statusTimer = null;
 let clockTimer = null;
 let streamStopped = false;
+let lastStreamOnline = null;
 
 let calibrationMode = false;
 let calibrationPoints = [];
@@ -199,12 +299,29 @@ async function refreshStreamStatus(){
 
         const s = await r.json();
 
+        const offline = document.getElementById("offlinePulse");
+        if(offline){
+            offline.style.display = s.online ? "none" : "block";
+        }
+
+        if(lastStreamOnline === false && s.online === true){
+            const live = document.getElementById("live-stream");
+            if(live){
+                live.src = "/camera/{{ camera['id'] }}/stream?ts=" + new Date().getTime();
+            }
+        }
+
+        lastStreamOnline = s.online;
+
         document.getElementById("streamStatus").innerHTML =
             "Online : " + s.online +
+            "<br>Stale : " + s.stale +
             "<br>Frame : " + s.frame_count +
             "<br>Motion : " + s.motion +
             "<br>Player Detection : " + s.player_detection +
             "<br>Player Count : " + s.player_count +
+            "<br>Ball Detection : " + s.ball_detection +
+            "<br>Ball Count : " + s.ball_count +
             "<br>Error : " + (s.error || "-");
 
     }catch(e){
@@ -420,6 +537,45 @@ document.getElementById("resetCalibrationBtn").addEventListener("click", functio
 
 document.getElementById("saveCalibrationBtn").addEventListener("click", saveCalibration);
 
+
+async function refreshPlayerDetectionStatus(){
+    try{
+        const r = await fetch("/camera/{{ camera['id'] }}/player-detection/status", {
+            cache: "no-store"
+        });
+        const data = await r.json();
+        document.getElementById("playerDetectionStatus").innerHTML =
+            "Player Detection: " + (data.enabled ? "ON" : "OFF");
+        setSwitchState("playerDetectionSwitch", data.enabled);
+    }catch(e){
+        document.getElementById("playerDetectionStatus").innerHTML =
+            "Player Detection: status error";
+    }
+}
+
+async function refreshBallDetectionStatus(){
+    try{
+        const r = await fetch("/camera/{{ camera['id'] }}/ball-detection/status", {
+            cache: "no-store"
+        });
+        const data = await r.json();
+        document.getElementById("ballDetectionStatus").innerHTML =
+            "Ball Detection: " + (data.enabled ? "ON" : "OFF");
+        setSwitchState("ballDetectionSwitch", data.enabled);
+    }catch(e){
+        document.getElementById("ballDetectionStatus").innerHTML =
+            "Ball Detection: status error";
+    }
+}
+
+
+
+
+
+refreshPlayerDetectionStatus();
+refreshBallDetectionStatus();
+
+
 window.addEventListener("resize", resizeCanvas);
 
 clockTimer = setInterval(updateOverlayClock, 1000);
@@ -428,6 +584,7 @@ statusTimer = setInterval(refreshStreamStatus, 2000);
 updateOverlayClock();
 refreshStreamStatus();
 refreshPlayerDetectionStatus();
+refreshBallDetectionStatus();
 resizeCanvas();
 loadCalibration();
 
@@ -454,18 +611,32 @@ async function refreshPlayerDetectionStatus(){
     }
 }
 
-document.getElementById("togglePlayerDetectionBtn").addEventListener("click", async function(){
-    const r = await fetch("/camera/{{ camera['id'] }}/player-detection/toggle", {
-        method: "POST"
-    });
 
-    const s = await r.json();
 
-    document.getElementById("playerDetectionStatus").innerHTML =
-        "Player Detection: " + (s.enabled ? "ON" : "OFF");
+
+
+
+document.getElementById("playerDetectionSwitch").addEventListener("change", async function(){
+    const dataBefore = await fetch("/camera/{{ camera['id'] }}/player-detection/status", {cache:"no-store"}).then(r => r.json());
+
+    if(dataBefore.enabled !== this.checked){
+        const data = await fetch("/camera/{{ camera['id'] }}/player-detection/toggle", {method:"POST"}).then(r => r.json());
+        this.checked = data.enabled;
+    }
+
+    refreshPlayerDetectionStatus();
 });
 
+document.getElementById("ballDetectionSwitch").addEventListener("change", async function(){
+    const dataBefore = await fetch("/camera/{{ camera['id'] }}/ball-detection/status", {cache:"no-store"}).then(r => r.json());
 
+    if(dataBefore.enabled !== this.checked){
+        const data = await fetch("/camera/{{ camera['id'] }}/ball-detection/toggle", {method:"POST"}).then(r => r.json());
+        this.checked = data.enabled;
+    }
+
+    refreshBallDetectionStatus();
+});
 
 </script>
 {% endblock %}

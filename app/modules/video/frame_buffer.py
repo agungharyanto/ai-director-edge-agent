@@ -11,6 +11,7 @@ class FrameBuffer:
         self.frame_count = 0
         self.online = False
         self.error = None
+        self.stale_seconds = 5
 
     def set_frame(self, frame):
         with self.lock:
@@ -27,13 +28,25 @@ class FrameBuffer:
 
     def get_frame(self):
         with self.lock:
+            if self.last_update is None:
+                return None
+
+            if time.time() - self.last_update > self.stale_seconds:
+                return None
+
             return self.frame
 
     def status(self):
         with self.lock:
+            stale = True
+
+            if self.last_update is not None:
+                stale = time.time() - self.last_update > self.stale_seconds
+
             return {
-                "online": self.online,
+                "online": self.online and not stale,
+                "stale": stale,
                 "last_update": self.last_update,
                 "frame_count": self.frame_count,
-                "error": self.error
+                "error": self.error if self.error else ("Frame stale" if stale else None)
             }

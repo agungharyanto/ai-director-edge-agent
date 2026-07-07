@@ -69,10 +69,13 @@ class VideoManager:
             return {
                 "online": False,
                 "last_update": None,
+                "stale": True,
                 "frame_count": 0,
                 "motion": 0,
                 "player_detection": self.pipeline.is_player_enabled(camera_id),
                 "player_count": self.pipeline.player_count(camera_id),
+                "ball_detection": self.pipeline.is_ball_enabled(camera_id),
+                "ball_count": self.pipeline.ball_count(camera_id),
                 "error": "Worker belum berjalan"
             }
 
@@ -81,10 +84,13 @@ class VideoManager:
         return {
             "online": status["online"],
             "last_update": status["last_update"],
+            "stale": status.get("stale", False),
             "frame_count": status["frame_count"],
             "motion": worker.motion_count if worker else 0,
             "player_detection": self.pipeline.is_player_enabled(camera_id),
             "player_count": self.pipeline.player_count(camera_id),
+                "ball_detection": self.pipeline.is_ball_enabled(camera_id),
+                "ball_count": self.pipeline.ball_count(camera_id),
             "error": status["error"]
         }
 
@@ -104,6 +110,12 @@ class VideoManager:
 
     def is_player_detection_enabled(self, camera_id):
         return self.pipeline.is_player_enabled(camera_id)
+
+    def toggle_ball_detection(self, camera_id):
+        return self.pipeline.toggle_ball(camera_id)
+
+    def is_ball_detection_enabled(self, camera_id):
+        return self.pipeline.is_ball_enabled(camera_id)
 
     def mjpeg_generator(self, camera_id):
         while True:

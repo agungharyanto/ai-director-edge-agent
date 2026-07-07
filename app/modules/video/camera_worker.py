@@ -77,6 +77,7 @@ class CameraWorker:
 
                     if not ok:
                         self.frame_buffer.set_error("Gagal membaca frame")
+                        time.sleep(1)
                         break
 
                     self.frame_index += 1
@@ -96,6 +97,8 @@ class CameraWorker:
                 if self.capture:
                     self.capture.release()
                     self.capture = None
+
+                time.sleep(2)
 
             except Exception as error:
                 self.frame_buffer.set_error(error)
