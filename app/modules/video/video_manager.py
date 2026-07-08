@@ -4,6 +4,7 @@ import cv2
 from app.modules.video.frame_buffer import FrameBuffer
 from app.modules.video.camera_worker import CameraWorker
 from app.modules.vision.vision_pipeline import VisionPipeline
+from app.modules.ptz.crop_engine import CropEngine
 
 
 class VideoManager:
@@ -16,6 +17,7 @@ class VideoManager:
             cls._instance.workers = {}
             cls._instance.buffers = {}
             cls._instance.pipeline = VisionPipeline()
+            cls._instance.crop_engine = CropEngine()
 
         return cls._instance
 
@@ -158,6 +160,50 @@ class VideoManager:
                 ".jpg",
                 frame,
                 [int(cv2.IMWRITE_JPEG_QUALITY), 70]
+            )
+
+            if not ok:
+                time.sleep(0.05)
+                continue
+
+            yield (
+                b"--frame\r\n"
+                b"Content-Type: image/jpeg\r\n\r\n"
+                + jpg.tobytes()
+                + b"\r\n"
+            )
+
+            time.sleep(0.12)
+
+
+    def director_mjpeg_generator(self, camera_id):
+        while True:
+            frame = self.get_frame(camera_id)
+
+            if frame is None:
+                time.sleep(0.05)
+                continue
+
+            frame = self.resize_frame(frame, width=1280)
+
+            # Tetap proses pipeline agar director/ptz window terus update
+            annotated = self.pipeline.process(camera_id, frame.copy())
+
+            window = self.get_virtual_ptz_window(camera_id)
+            cropped = self.crop_engine.crop(
+                annotated,
+                window,
+                output_width=960
+            )
+
+            if cropped is None:
+                time.sleep(0.05)
+                continue
+
+            ok, jpg = cv2.imencode(
+                ".jpg",
+                cropped,
+                [int(cv2.IMWRITE_JPEG_QUALITY), 75]
             )
 
             if not ok:

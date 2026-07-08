@@ -15,6 +15,24 @@ from app.modules.drivers.hikvision_driver import HikvisionDriver
 def register_camera_routes(app):
 
 
+    @app.route("/camera/<int:camera_id>/director-stream")
+    def camera_director_stream(camera_id):
+        camera_repo = CameraRepository()
+        camera = camera_repo.find(camera_id)
+
+        if camera is None:
+            return "Camera tidak ditemukan", 404
+
+        vm = VideoManager()
+        vm.start_camera(camera)
+
+        return Response(
+            vm.director_mjpeg_generator(camera_id),
+            mimetype="multipart/x-mixed-replace; boundary=frame"
+        )
+
+
+
     @app.route("/camera/<int:camera_id>/virtual-ptz")
     def camera_virtual_ptz(camera_id):
         vm = VideoManager()
