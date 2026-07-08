@@ -229,9 +229,12 @@ class VisionPipeline:
 
     def update_virtual_ptz(self, camera_id):
         director = self.get_director_decision(camera_id)
+        coordinates = self.get_coordinates(camera_id)
+
         self.latest_ptz_window[camera_id] = self.virtual_ptz.decide_window(
             camera_id,
-            director
+            director,
+            coordinates
         )
 
     def get_virtual_ptz_window(self, camera_id):
