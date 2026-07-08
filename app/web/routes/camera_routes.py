@@ -1,3 +1,7 @@
+from pathlib import Path
+import json
+from flask import request, jsonify, Response
+from app.modules.streaming.director_mjpeg_stream import generate_director_mjpeg
 from flask import render_template, request, redirect, url_for, jsonify, Response
 
 from app.modules.provisioning.profile_engine import ProfileEngine
@@ -13,6 +17,57 @@ from app.modules.drivers.hikvision_driver import HikvisionDriver
 
 
 def register_camera_routes(app):
+
+    @app.route("/camera/<int:camera_id>/director-settings", methods=["GET", "POST"])
+    def camera_director_settings(camera_id):
+        settings_file = Path("storage/config/director_tuning.json")
+        settings_file.parent.mkdir(parents=True, exist_ok=True)
+
+        default = {
+            "pan_speed": 0.055,
+            "deadzone_x": 45,
+            "deadzone_y": 80,
+            "fixed_zoom": 1.35,
+            "center_x": 0.50,
+            "center_y": 0.50
+        }
+
+        try:
+            if settings_file.exists():
+                data = json.loads(settings_file.read_text())
+            else:
+                data = {}
+        except Exception:
+            data = {}
+
+        cam_key = str(camera_id)
+
+        if request.method == "GET":
+            current = default.copy()
+            current.update(data.get(cam_key, {}))
+            return jsonify({"success": True, "settings": current})
+
+        payload = request.get_json(silent=True) or {}
+
+        current = default.copy()
+        current.update(data.get(cam_key, {}))
+
+        for key in ["pan_speed", "deadzone_x", "deadzone_y", "fixed_zoom", "center_x", "center_y"]:
+            if key in payload:
+                current[key] = payload[key]
+
+        current["pan_speed"] = max(0.005, min(0.30, float(current["pan_speed"])))
+        current["deadzone_x"] = max(0, min(300, int(float(current["deadzone_x"]))))
+        current["deadzone_y"] = max(0, min(300, int(float(current["deadzone_y"]))))
+        current["fixed_zoom"] = max(1.0, min(2.5, float(current["fixed_zoom"])))
+        current["center_x"] = max(0.0, min(1.0, float(current["center_x"])))
+        current["center_y"] = max(0.0, min(1.0, float(current["center_y"])))
+
+        data[cam_key] = current
+        settings_file.write_text(json.dumps(data, indent=2))
+
+        return jsonify({"success": True, "settings": current})
+
 
 
     @app.route("/camera/<int:camera_id>/director-stream")

@@ -4,6 +4,68 @@
 
 {% block content %}
 
+<style id="v0471-tabs-style">
+#cameraDetailTabs{
+    border-bottom:1px solid #dee2e6;
+}
+#cameraDetailTabs .nav-link{
+    border:1px solid transparent;
+    border-top-left-radius:.25rem;
+    border-top-right-radius:.25rem;
+    padding:10px 16px;
+}
+#cameraDetailTabs .nav-link.active{
+    color:#212529;
+    background:#fff;
+    border-color:#dee2e6 #dee2e6 #fff;
+    font-weight:600;
+}
+#cameraDetailTabs .nav-link:not(.active){
+    color:#007bff;
+}
+</style>
+
+
+<style id="v0469-pip-style">
+#videoWrap.director-pip{
+    position:fixed !important;
+    right:22px;
+    top:88px;
+    width:520px !important;
+    z-index:9999;
+    background:#111;
+    padding:8px;
+    border-radius:10px;
+    box-shadow:0 8px 28px rgba(0,0,0,.45);
+}
+#videoWrap.director-pip:before{
+    content:"AI Director Tuning Preview";
+    display:block;
+    color:white;
+    font-size:13px;
+    margin-bottom:6px;
+}
+</style>
+
+
+<style id="v0468-live-sticky-style">
+#liveViewStickyCard{
+    position: sticky;
+    top: 75px;
+    z-index: 25;
+}
+</style>
+
+
+<style id="v0467-sticky-liveview-style">
+#liveViewStickyCard{
+    position: sticky;
+    top: 75px;
+    z-index: 25;
+}
+</style>
+
+
 <style>
 .offline-pulse{
     position:absolute;
@@ -83,6 +145,18 @@
 <div class="card-header"><h3 class="card-title">Camera Info</h3></div>
 <div class="card-body">
 
+<ul class="nav nav-tabs mb-3" id="cameraDetailTabs">
+  <li class="nav-item">
+    <a class="nav-link active" data-toggle="tab" href="#camera-info-tab">Camera Info</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-toggle="tab" href="#director-tuning-tab">Tuning Director</a>
+  </li>
+</ul>
+
+<div class="tab-content">
+<div id="camera-info-tab" class="tab-pane fade show active">
+
 <table class="table table-bordered">
 <tr><td>Name</td><td>{{ camera["name"] }}</td></tr>
 <tr><td>IP</td><td>{{ camera["ip_address"] }}</td></tr>
@@ -161,6 +235,97 @@ Ball Detection: loading...
 Calibration: loading...
 </div>
 
+
+
+
+
+</div>
+
+<div id="director-tuning-tab" class="tab-pane fade">
+
+<div class="alert alert-info small">
+<b>Merah</b> = deadzone pan.<br>
+<b>Biru</b> = fixed zoom crop.<br>
+Geser titik tengah merah/biru lewat Center X/Y, atau drag langsung dari area merah di Live View.
+</div>
+
+<label><b>Pan Speed</b></label>
+<div class="input-group mb-2">
+  <div class="input-group-prepend">
+    <button class="btn btn-secondary director-step" data-key="pan_speed" data-step="-0.01" type="button">◀</button>
+  </div>
+  <input id="director_pan_speed" class="form-control" type="number" step="0.005">
+  <div class="input-group-append">
+    <button class="btn btn-secondary director-step" data-key="pan_speed" data-step="0.01" type="button">▶</button>
+  </div>
+</div>
+
+<label><b>Deadzone X / Kanan-Kiri</b></label>
+<div class="input-group mb-2">
+  <div class="input-group-prepend">
+    <button class="btn btn-secondary director-step" data-key="deadzone_x" data-step="-5" type="button">-</button>
+  </div>
+  <input id="director_deadzone_x" class="form-control" type="number" step="1">
+  <div class="input-group-append">
+    <button class="btn btn-secondary director-step" data-key="deadzone_x" data-step="5" type="button">+</button>
+  </div>
+</div>
+
+<label><b>Deadzone Y / Atas-Bawah</b></label>
+<div class="input-group mb-2">
+  <div class="input-group-prepend">
+    <button class="btn btn-secondary director-step" data-key="deadzone_y" data-step="-5" type="button">-</button>
+  </div>
+  <input id="director_deadzone_y" class="form-control" type="number" step="1">
+  <div class="input-group-append">
+    <button class="btn btn-secondary director-step" data-key="deadzone_y" data-step="5" type="button">+</button>
+  </div>
+</div>
+
+<label><b>Fixed Zoom</b></label>
+<div class="input-group mb-2">
+  <div class="input-group-prepend">
+    <button class="btn btn-secondary director-step" data-key="fixed_zoom" data-step="-0.05" type="button">-</button>
+  </div>
+  <input id="director_fixed_zoom" class="form-control" type="number" step="0.05">
+  <div class="input-group-append">
+    <button class="btn btn-secondary director-step" data-key="fixed_zoom" data-step="0.05" type="button">+</button>
+  </div>
+</div>
+
+<label><b>Center X / Geser Kanan-Kiri</b></label>
+<div class="input-group mb-2">
+  <div class="input-group-prepend">
+    <button class="btn btn-secondary director-step" data-key="center_x" data-step="-0.02" type="button">◀</button>
+  </div>
+  <input id="director_center_x" class="form-control" type="number" step="0.01">
+  <div class="input-group-append">
+    <button class="btn btn-secondary director-step" data-key="center_x" data-step="0.02" type="button">▶</button>
+  </div>
+</div>
+
+<label><b>Center Y / Geser Atas-Bawah</b></label>
+<div class="input-group mb-2">
+  <div class="input-group-prepend">
+    <button class="btn btn-secondary director-step" data-key="center_y" data-step="-0.02" type="button">▲</button>
+  </div>
+  <input id="director_center_y" class="form-control" type="number" step="0.01">
+  <div class="input-group-append">
+    <button class="btn btn-secondary director-step" data-key="center_y" data-step="0.02" type="button">▼</button>
+  </div>
+</div>
+
+<button id="saveDirectorTuningBtn" class="btn btn-primary btn-block" type="button">
+Save Tuning Director
+</button>
+
+<div id="directorTuningStatus" class="small text-muted mt-2">
+Director tuning: loading...
+</div>
+
+</div>
+</div>
+
 <hr>
 
 <div class="card">
@@ -202,7 +367,7 @@ Dataset: ready.
 </div>
 
 <div class="col-md-8">
-<div class="card">
+<div class="card" id="liveViewStickyCard">
 <div class="card-header">
 <h3 class="card-title">Live View + Court Calibration</h3>
 </div>
@@ -229,8 +394,9 @@ OFFLINE
         left:0;
         width:100%;
         height:100%;
-        pointer-events:none;
+        pointer-events:auto;
         z-index:10;
+        cursor:crosshair;
     "
 ></canvas>
 
@@ -247,6 +413,7 @@ line-height:20px;
 min-width:260px;
 text-align:left;
 z-index:20;
+pointer-events:none;
 ">
 
 <b>{{ overlay.court }}</b><br>
@@ -275,6 +442,7 @@ Loading stream status...
 </div>
 <div class="card-body">
 
+
 <img
     src="/camera/{{ camera['id'] }}/director-stream"
     id="director-stream"
@@ -285,6 +453,8 @@ Loading stream status...
 <div class="small text-muted mt-2">
 Virtual PTZ Preview berdasarkan AI Director Decision.
 </div>
+
+<hr>
 
 </div>
 </div>
@@ -320,6 +490,278 @@ Virtual PTZ Preview berdasarkan AI Director Decision.
 </div>
 </div>
 </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script id="v0470-tabs-tuning-js">
+(function(){
+    const ids = {
+        pan_speed: "director_pan_speed",
+        deadzone_x: "director_deadzone_x",
+        deadzone_y: "director_deadzone_y",
+        fixed_zoom: "director_fixed_zoom",
+        center_x: "director_center_x",
+        center_y: "director_center_y"
+    };
+
+    function el(id){ return document.getElementById(id); }
+
+    function getVal(key, fallback){
+        const input = el(ids[key]);
+        if(!input || input.value === "") return fallback;
+        return parseFloat(input.value);
+    }
+
+    function setVal(key, value){
+        const input = el(ids[key]);
+        if(!input) return;
+
+        if(key === "pan_speed") input.value = Number(value).toFixed(3);
+        else if(key === "fixed_zoom") input.value = Number(value).toFixed(2);
+        else if(key === "center_x" || key === "center_y") input.value = Number(value).toFixed(2);
+        else input.value = parseInt(value);
+    }
+
+    function redraw(){
+        if(typeof window.drawCalibration === "function"){
+            window.drawCalibration();
+        }
+    }
+
+    function tuningTabActive(){
+        const tab = el("director-tuning-tab");
+        return tab && tab.className.indexOf("active") >= 0;
+    }
+
+    async function loadTuning(){
+        try{
+            const r = await fetch("/camera/{{ camera['id'] }}/director-settings", {cache:"no-store"});
+            const data = await r.json();
+
+            if(data.success){
+                Object.keys(ids).forEach(function(k){
+                    if(data.settings[k] !== undefined){
+                        setVal(k, data.settings[k]);
+                    }
+                });
+
+                if(el("directorTuningStatus")){
+                    el("directorTuningStatus").innerHTML = "Director tuning: loaded.";
+                }
+
+                redraw();
+            }
+        }catch(e){
+            if(el("directorTuningStatus")){
+                el("directorTuningStatus").innerHTML = "Director tuning: load error.";
+            }
+        }
+    }
+
+    async function saveTuning(){
+        const payload = {};
+        Object.keys(ids).forEach(function(k){
+            payload[k] = getVal(k, 0);
+        });
+
+        try{
+            const r = await fetch("/camera/{{ camera['id'] }}/director-settings", {
+                method:"POST",
+                headers:{"Content-Type":"application/json"},
+                body:JSON.stringify(payload)
+            });
+
+            const data = await r.json();
+
+            if(data.success){
+                Object.keys(ids).forEach(function(k){
+                    if(data.settings[k] !== undefined){
+                        setVal(k, data.settings[k]);
+                    }
+                });
+
+                if(el("directorTuningStatus")){
+                    el("directorTuningStatus").innerHTML = "Director tuning: saved.";
+                }
+
+                redraw();
+            }
+        }catch(e){
+            if(el("directorTuningStatus")){
+                el("directorTuningStatus").innerHTML = "Director tuning: save error.";
+            }
+        }
+    }
+
+    document.querySelectorAll('a[data-toggle="tab"]').forEach(function(a){
+        a.addEventListener("shown.bs.tab", function(){
+            loadTuning();
+            redraw();
+        });
+        a.addEventListener("click", function(){
+            setTimeout(loadTuning, 150);
+            setTimeout(redraw, 300);
+        });
+    });
+
+    document.querySelectorAll(".director-step").forEach(function(btn){
+        btn.addEventListener("click", function(){
+            const key = this.dataset.key;
+            const step = parseFloat(this.dataset.step);
+            setVal(key, getVal(key, 0) + step);
+            redraw();
+            saveTuning();
+        });
+    });
+
+    Object.keys(ids).forEach(function(k){
+        const input = el(ids[k]);
+        if(input){
+            input.addEventListener("input", redraw);
+            input.addEventListener("change", saveTuning);
+        }
+    });
+
+    const saveBtn = el("saveDirectorTuningBtn");
+    if(saveBtn){
+        saveBtn.addEventListener("click", saveTuning);
+    }
+
+    const canvas = el("calibrationCanvas");
+    let dragging = false;
+
+    function pointInsideCourt(nx, ny){
+        if(!window.calibrationPoints || window.calibrationPoints.length !== 4){
+            return true;
+        }
+
+        const x = nx * canvas.width;
+        const y = ny * canvas.height;
+
+        let inside = false;
+        let j = window.calibrationPoints.length - 1;
+
+        for(let i=0; i<window.calibrationPoints.length; i++){
+            const xi = window.calibrationPoints[i].x;
+            const yi = window.calibrationPoints[i].y;
+            const xj = window.calibrationPoints[j].x;
+            const yj = window.calibrationPoints[j].y;
+
+            const intersect = ((yi > y) !== (yj > y)) &&
+                (x < (xj - xi) * (y - yi) / Math.max((yj - yi), 0.000001) + xi);
+
+            if(intersect) inside = !inside;
+            j = i;
+        }
+
+        return inside;
+    }
+
+    function mouse(evt){
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: Math.max(0, Math.min(1, (evt.clientX - rect.left) / Math.max(rect.width,1))),
+            y: Math.max(0, Math.min(1, (evt.clientY - rect.top) / Math.max(rect.height,1)))
+        };
+    }
+
+    function insideRedBox(evt){
+        const rect = canvas.getBoundingClientRect();
+
+        const mx = evt.clientX - rect.left;
+        const my = evt.clientY - rect.top;
+
+        const cx = getVal("center_x", 0.5) * rect.width;
+        const cy = getVal("center_y", 0.5) * rect.height;
+
+        const deadX = getVal("deadzone_x", 45);
+        const deadY = getVal("deadzone_y", 80);
+
+        return mx >= cx - deadX && mx <= cx + deadX && my >= cy - deadY && my <= cy + deadY;
+    }
+
+    if(canvas){
+        canvas.addEventListener("mousedown", function(evt){
+            if(!tuningTabActive()) return;
+            if(!insideRedBox(evt)) return;
+
+            dragging = true;
+
+            const m = mouse(evt);
+            if(pointInsideCourt(m.x, m.y)){
+                setVal("center_x", m.x);
+                setVal("center_y", m.y);
+                redraw();
+            }
+
+            evt.preventDefault();
+            evt.stopPropagation();
+        }, true);
+
+        canvas.addEventListener("mousemove", function(evt){
+            if(!dragging) return;
+
+            const m = mouse(evt);
+            if(pointInsideCourt(m.x, m.y)){
+                setVal("center_x", m.x);
+                setVal("center_y", m.y);
+                redraw();
+            }
+
+            evt.preventDefault();
+            evt.stopPropagation();
+        }, true);
+
+        window.addEventListener("mouseup", function(){
+            if(dragging){
+                dragging = false;
+                saveTuning();
+            }
+        }, true);
+    }
+
+    setTimeout(loadTuning, 500);
+    setTimeout(redraw, 1000);
+})();
+</script>
+
+
+<script id="v0471-tabs-default-js">
+(function(){
+    function activateDefaultCameraInfoTab(){
+        const cameraTab = document.querySelector('#cameraDetailTabs a[href="#camera-info-tab"]');
+        const tuningTab = document.querySelector('#cameraDetailTabs a[href="#director-tuning-tab"]');
+        const cameraPane = document.getElementById("camera-info-tab");
+        const tuningPane = document.getElementById("director-tuning-tab");
+
+        if(!cameraTab || !cameraPane) return;
+
+        if(tuningTab) tuningTab.classList.remove("active");
+        cameraTab.classList.add("active");
+
+        if(tuningPane){
+            tuningPane.classList.remove("show");
+            tuningPane.classList.remove("active");
+        }
+
+        cameraPane.classList.add("show");
+        cameraPane.classList.add("active");
+    }
+
+    setTimeout(activateDefaultCameraInfoTab, 100);
+})();
+</script>
 
 {% endblock %}
 
@@ -423,7 +865,8 @@ let streamStopped = false;
 let lastStreamOnline = null;
 
 let calibrationMode = false;
-let calibrationPoints = [];
+var calibrationPoints = [];
+window.calibrationPoints = calibrationPoints;
 
 const pointNames = [
     "top_left",
@@ -527,19 +970,106 @@ function resizeCanvas(){
     const live = document.getElementById("live-stream");
     const canvas = document.getElementById("calibrationCanvas");
 
+let draggingCalibrationPoint = null;
+let dragMoved = false;
+
+function getCanvasMouse(event){
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / Math.max(rect.width, 1);
+    const scaleY = canvas.height / Math.max(rect.height, 1);
+
+    return {
+        x: Math.round((event.clientX - rect.left) * scaleX),
+        y: Math.round((event.clientY - rect.top) * scaleY)
+    };
+}
+
+function nearestCalibrationPoint(mouse){
+    if(calibrationPoints.length === 0){
+        return null;
+    }
+
+    let nearest = null;
+    let nearestDistance = 999999;
+    const radius = 28;
+
+    calibrationPoints.forEach(function(p, index){
+        const dx = mouse.x - p.x;
+        const dy = mouse.y - p.y;
+        const d = Math.sqrt(dx * dx + dy * dy);
+
+        if(d < nearestDistance){
+            nearestDistance = d;
+            nearest = index;
+        }
+    });
+
+    return nearestDistance <= radius ? nearest : null;
+}
+
+canvas.addEventListener("mousedown", function(event){
+    const mouse = getCanvasMouse(event);
+    const nearest = nearestCalibrationPoint(mouse);
+
+    if(nearest !== null){
+        draggingCalibrationPoint = nearest;
+        dragMoved = false;
+        canvas.style.cursor = "grabbing";
+        calibrationModeLabel.innerHTML = "DRAG POINT " + (nearest + 1);
+        event.preventDefault();
+        event.stopPropagation();
+        return false;
+    }
+}, true);
+
+canvas.addEventListener("mousemove", function(event){
+    const mouse = getCanvasMouse(event);
+
+    if(draggingCalibrationPoint !== null){
+        dragMoved = true;
+
+        calibrationPoints[draggingCalibrationPoint] = {
+            x: Math.max(0, Math.min(canvas.width, mouse.x)),
+            y: Math.max(0, Math.min(canvas.height, mouse.y))
+        };
+
+        drawCalibration();
+        updateCalibrationInfo();
+
+        event.preventDefault();
+        event.stopPropagation();
+        return false;
+    }
+
+    const nearest = nearestCalibrationPoint(mouse);
+    canvas.style.cursor = nearest !== null ? "grab" : "crosshair";
+}, true);
+
+window.addEventListener("mouseup", function(){
+    if(draggingCalibrationPoint !== null){
+        draggingCalibrationPoint = null;
+        canvas.style.cursor = "crosshair";
+        calibrationModeLabel.innerHTML = calibrationMode ? "CALIBRATION" : "VIEW";
+        drawCalibration();
+        updateCalibrationInfo();
+    }
+}, true);
+
+
     canvas.width = live.clientWidth;
     canvas.height = live.clientHeight;
 
     drawCalibration();
 }
 
-function drawCalibration(){
+window.drawCalibration = function drawCalibration(){
     const canvas = document.getElementById("calibrationCanvas");
     const ctx = canvas.getContext("2d");
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if(calibrationPoints.length === 0){
+        drawDirectorDeadzoneBox();
         return;
     }
 
@@ -580,6 +1110,89 @@ function drawCalibration(){
         ctx.strokeText((i + 1) + ". " + pointLabels[i], p.x + 10, p.y - 10);
         ctx.fillText((i + 1) + ". " + pointLabels[i], p.x + 10, p.y - 10);
     });
+
+    drawDirectorDeadzoneBox();
+}
+
+
+function drawDirectorDeadzoneBox(){
+    const canvas = document.getElementById("calibrationCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const deadXInput = document.getElementById("director_deadzone_x");
+    const deadYInput = document.getElementById("director_deadzone_y");
+    const zoomInput = document.getElementById("director_fixed_zoom");
+    const panInput = document.getElementById("director_pan_speed");
+    const centerXInput = document.getElementById("director_center_x");
+    const centerYInput = document.getElementById("director_center_y");
+
+    if(!deadXInput || !deadYInput || !zoomInput){
+        return;
+    }
+
+    const deadX = parseFloat(deadXInput.value || 45);
+    const deadY = parseFloat(deadYInput.value || 80);
+    const fixedZoom = Math.max(1.0, parseFloat(zoomInput.value || 1.35));
+    const panSpeed = panInput ? parseFloat(panInput.value || 0.055) : 0.055;
+
+    const centerX = centerXInput ? parseFloat(centerXInput.value || 0.5) : 0.5;
+    const centerY = centerYInput ? parseFloat(centerYInput.value || 0.5) : 0.5;
+
+    const cx = canvas.width * Math.max(0, Math.min(1, centerX));
+    const cy = canvas.height * Math.max(0, Math.min(1, centerY));
+
+    const cropW = canvas.width / fixedZoom;
+    const cropH = canvas.height / fixedZoom;
+
+    const cropLeft = Math.max(0, Math.min(canvas.width - cropW, cx - cropW / 2));
+    const cropTop = Math.max(0, Math.min(canvas.height - cropH, cy - cropH / 2));
+
+    const deadLeft = Math.max(0, cx - deadX);
+    const deadRight = Math.min(canvas.width, cx + deadX);
+    const deadTop = Math.max(0, cy - deadY);
+    const deadBottom = Math.min(canvas.height, cy + deadY);
+
+    ctx.save();
+
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "rgba(0,130,255,0.95)";
+    ctx.fillStyle = "rgba(0,130,255,0.06)";
+    ctx.beginPath();
+    ctx.rect(cropLeft, cropTop, cropW, cropH);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = "bold 14px Arial";
+    ctx.fillStyle = "rgba(0,130,255,1)";
+    ctx.strokeStyle = "black";
+    ctx.lineWidth = 4;
+    ctx.strokeText("FIXED ZOOM CROP " + fixedZoom.toFixed(2) + "x", cropLeft + 10, cropTop + 24);
+    ctx.fillText("FIXED ZOOM CROP " + fixedZoom.toFixed(2) + "x", cropLeft + 10, cropTop + 24);
+
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = "rgba(255,60,0,0.95)";
+    ctx.fillStyle = "rgba(255,60,0,0.08)";
+    ctx.beginPath();
+    ctx.rect(deadLeft, deadTop, deadRight - deadLeft, deadBottom - deadTop);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = "bold 14px Arial";
+    ctx.fillStyle = "rgba(255,60,0,1)";
+    ctx.strokeStyle = "black";
+    ctx.lineWidth = 4;
+    ctx.strokeText("PAN DEADZONE X:" + deadX + " Y:" + deadY + " | Pan:" + panSpeed, deadLeft + 10, Math.max(20, deadTop - 10));
+    ctx.fillText("PAN DEADZONE X:" + deadX + " Y:" + deadY + " | Pan:" + panSpeed, deadLeft + 10, Math.max(20, deadTop - 10));
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+    ctx.fillStyle = "white";
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "black";
+    ctx.stroke();
+
+    ctx.restore();
 }
 
 function updateCalibrationInfo(){
@@ -598,6 +1211,11 @@ function updateCalibrationInfo(){
 }
 
 function canvasClick(e){
+    if(dragMoved){
+        dragMoved = false;
+        return;
+    }
+
     if(!calibrationMode){
         return;
     }
@@ -671,7 +1289,7 @@ async function saveCalibration(){
 
     if(data.success){
         calibrationMode = false;
-        document.getElementById("calibrationCanvas").style.pointerEvents = "none";
+        document.getElementById("calibrationCanvas").style.pointerEvents = "auto";
         updateCalibrationInfo();
         alert("Calibration saved.");
     }else{
@@ -696,12 +1314,13 @@ canvas.addEventListener("click", canvasClick);
 
 document.getElementById("calibrateBtn").addEventListener("click", function(){
     calibrationMode = !calibrationMode;
-    canvas.style.pointerEvents = calibrationMode ? "auto" : "none";
+    canvas.style.pointerEvents = "auto";
     updateCalibrationInfo();
 });
 
 document.getElementById("resetCalibrationBtn").addEventListener("click", function(){
     calibrationPoints = [];
+    window.calibrationPoints = calibrationPoints;
     drawCalibration();
     updateCalibrationInfo();
 });
@@ -858,4 +1477,8 @@ document.querySelectorAll(".dataset-capture-btn").forEach(function(btn){
 refreshDatasetStats();
 
 </script>
+
+
+
+
 {% endblock %}

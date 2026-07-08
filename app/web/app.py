@@ -1,11 +1,9 @@
 import uuid
-import cv2
 
-from flask import Flask, render_template, request, redirect, url_for, jsonify, Response
+from flask import Flask, render_template, request, redirect, url_for, jsonify
 from app.modules.provisioning.profile_engine import ProfileEngine
 from app.modules.provisioning.verify_engine import VerifyEngine
 from app.modules.overlay.overlay_engine import OverlayEngine
-from flask import Response
 from app.modules.video.video_manager import VideoManager
 
 from app.core.config import Config
@@ -40,5 +38,4 @@ app = Flask(
 app.config["SECRET_KEY"] = Config.SECRET_KEY
 
 register_routes(app)
-
 

@@ -1,6 +1,6 @@
 import time
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 
 @dataclass
@@ -24,13 +24,13 @@ class SmoothDirector:
         frame_w: int,
         frame_h: int,
         min_zoom: float = 1.0,
-        max_zoom: float = 2.6,
-        target_fill: float = 0.68,
+        max_zoom: float = 2.0,
+        target_fill: float = 0.60,
         deadzone_px: float = 55,
-        zoom_deadzone: float = 0.07,
-        pan_speed: float = 0.065,
-        zoom_speed: float = 0.018,
-        prediction_strength: float = 0.45,
+        zoom_deadzone: float = 0.04,
+        pan_speed: float = 0.070,
+        zoom_speed: float = 0.0012,
+        prediction_strength: float = 0.55,
     ):
         self.frame_w = frame_w
         self.frame_h = frame_h
@@ -48,8 +48,9 @@ class SmoothDirector:
         self.last_target_cy = self.state.cy
         self.last_time = time.time()
 
-    def update(self, boxes: List[Box]) -> Tuple[int, int, int, int]:
+    def update(self, boxes: List[Box], forced_zoom: Optional[float] = None) -> Tuple[int, int, int, int]:
         if not boxes:
+            self._smooth_zoom(self.min_zoom if forced_zoom is None else forced_zoom)
             return self._crop_from_state()
 
         now = time.time()
@@ -68,8 +69,7 @@ class SmoothDirector:
         self.last_target_cy = raw_cy
 
         speed = (vx * vx + vy * vy) ** 0.5
-
-        prediction_px = min(speed * self.prediction_strength * dt, 160)
+        prediction_px = min(speed * self.prediction_strength * dt, 120)
 
         if speed > 1:
             pred_cx = raw_cx + (vx / speed) * prediction_px
@@ -78,15 +78,16 @@ class SmoothDirector:
             pred_cx = raw_cx
             pred_cy = raw_cy
 
-        margin = self._adaptive_margin(speed)
+        if forced_zoom is None:
+            margin = 180
+            box_w = (b.x2 - b.x1) + margin * 2
+            box_h = (b.y2 - b.y1) + margin * 2
+            zoom_x = self.frame_w * self.target_fill / max(box_w, 1)
+            zoom_y = self.frame_h * self.target_fill / max(box_h, 1)
+            target_zoom = min(zoom_x, zoom_y)
+        else:
+            target_zoom = forced_zoom
 
-        box_w = (b.x2 - b.x1) + margin * 2
-        box_h = (b.y2 - b.y1) + margin * 2
-
-        zoom_x = self.frame_w * self.target_fill / max(box_w, 1)
-        zoom_y = self.frame_h * self.target_fill / max(box_h, 1)
-
-        target_zoom = min(zoom_x, zoom_y)
         target_zoom = max(self.min_zoom, min(self.max_zoom, target_zoom))
 
         self._smooth_pan(pred_cx, pred_cy)
@@ -101,9 +102,6 @@ class SmoothDirector:
             max(b.x2 for b in boxes),
             max(b.y2 for b in boxes),
         )
-
-    def _adaptive_margin(self, speed: float) -> float:
-        return 90 + min(speed * 0.035, 170)
 
     def _smooth_pan(self, target_cx: float, target_cy: float):
         dx = target_cx - self.state.cx
@@ -137,16 +135,13 @@ class SmoothDirector:
         if x1 < 0:
             x2 -= x1
             x1 = 0
-
         if y1 < 0:
             y2 -= y1
             y1 = 0
-
         if x2 > self.frame_w:
             shift = x2 - self.frame_w
             x1 -= shift
             x2 = self.frame_w
-
         if y2 > self.frame_h:
             shift = y2 - self.frame_h
             y1 -= shift

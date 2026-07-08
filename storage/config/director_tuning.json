@@ -1,0 +1,10 @@
+{
+  "14": {
+    "pan_speed": 0.15,
+    "deadzone_x": 300,
+    "deadzone_y": 278,
+    "fixed_zoom": 2.45,
+    "center_x": 0.55,
+    "center_y": 0.45
+  }
+}

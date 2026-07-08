@@ -1,0 +1,363 @@
+import os
+import time
+import json
+import threading
+from pathlib import Path
+
+os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
+    "rtsp_transport;tcp|"
+    "stimeout;5000000|"
+    "fflags;nobuffer|"
+    "flags;low_delay|"
+    "max_delay;100000|"
+    "buffer_size;102400"
+)
+
+import cv2
+import numpy as np
+from ultralytics import YOLO
+
+
+_MODEL = None
+_WORKERS = {}
+SETTINGS_FILE = Path("storage/config/director_tuning.json")
+
+
+def get_model():
+    global _MODEL
+    if _MODEL is None:
+        print("Loading YOLO model...")
+        _MODEL = YOLO("yolov8n.pt")
+    return _MODEL
+
+
+def load_director_settings(camera_id):
+    default = {
+        "pan_speed": 0.055,
+        "deadzone_x": 45,
+        "deadzone_y": 80,
+        "fixed_zoom": 1.35
+    }
+
+    try:
+        if not SETTINGS_FILE.exists():
+            return default
+
+        data = json.loads(SETTINGS_FILE.read_text())
+        cam = str(camera_id)
+
+        if cam not in data:
+            return default
+
+        default.update(data[cam])
+        return default
+
+    except Exception as e:
+        print("Load director settings error:", e)
+        return default
+
+
+def point_in_polygon(x, y, polygon):
+    inside = False
+    j = len(polygon) - 1
+
+    for i in range(len(polygon)):
+        xi, yi = polygon[i]
+        xj, yj = polygon[j]
+
+        if ((yi > y) != (yj > y)):
+            x_intersect = (xj - xi) * (y - yi) / max((yj - yi), 0.000001) + xi
+            if x < x_intersect:
+                inside = not inside
+
+        j = i
+
+    return inside
+
+
+def default_court_zone(w, h):
+    return [
+        (int(w * 0.18), int(h * 0.10)),
+        (int(w * 0.86), int(h * 0.10)),
+        (int(w * 0.90), int(h * 0.90)),
+        (int(w * 0.14), int(h * 0.90)),
+    ]
+
+
+class PanOnlyDirectorWorker:
+    def __init__(self, rtsp_url, camera_id, conf=0.35, output_width=1280, output_height=720, detect_width=960):
+        self.rtsp_url = rtsp_url
+        self.camera_id = camera_id
+        self.conf = conf
+        self.output_width = output_width
+        self.output_height = output_height
+        self.detect_width = detect_width
+
+        self.model = get_model()
+        self.cap = None
+        self.running = False
+
+        self.latest_frame = None
+        self.latest_frame_id = 0
+        self.latest_jpeg = None
+        self.lock = threading.Lock()
+
+        self.frame_w = 0
+        self.frame_h = 0
+        self.court_zone = None
+        self.camera_x = None
+        self.camera_y = None
+
+    def start(self):
+        if self.running:
+            return
+
+        self.running = True
+        threading.Thread(target=self._capture_loop, daemon=True).start()
+        threading.Thread(target=self._process_loop, daemon=True).start()
+
+    def _open_camera(self):
+        if self.cap is not None:
+            try:
+                self.cap.release()
+            except Exception:
+                pass
+
+        self.cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+        if not self.cap.isOpened():
+            raise RuntimeError("Gagal membuka RTSP")
+
+        print("RTSP opened:", self.rtsp_url)
+
+    def _capture_loop(self):
+        while self.running:
+            try:
+                self._open_camera()
+
+                while self.running:
+                    ret, frame = self.cap.read()
+
+                    if not ret:
+                        print("RTSP frame gagal, reconnect...")
+                        break
+
+                    with self.lock:
+                        self.latest_frame = frame
+                        self.latest_frame_id += 1
+
+            except Exception as e:
+                print("Capture error:", e)
+
+            time.sleep(0.5)
+
+    def _init_scene(self, frame):
+        h, w = frame.shape[:2]
+        self.frame_w = w
+        self.frame_h = h
+        self.court_zone = default_court_zone(w, h)
+        self.camera_x = w / 2
+        self.camera_y = h / 2
+        print(f"PAN ONLY v0.4.63 initialized: {w}x{h}")
+
+    def _detect_players(self, frame):
+        h, w = frame.shape[:2]
+
+        detect_h = int(h * (self.detect_width / w))
+        detect_frame = cv2.resize(frame, (self.detect_width, detect_h))
+
+        results = self.model(detect_frame, conf=self.conf, verbose=False)[0]
+
+        sx = w / self.detect_width
+        sy = h / detect_h
+
+        players = []
+        court_players = []
+
+        for r in results.boxes:
+            cls_id = int(r.cls[0])
+            label = self.model.names[cls_id]
+
+            if label != "person":
+                continue
+
+            x1, y1, x2, y2 = r.xyxy[0].tolist()
+
+            box = {
+                "x1": float(x1 * sx),
+                "y1": float(y1 * sy),
+                "x2": float(x2 * sx),
+                "y2": float(y2 * sy),
+            }
+
+            cx = (box["x1"] + box["x2"]) / 2
+            cy = (box["y1"] + box["y2"]) / 2
+
+            inside = point_in_polygon(cx, cy, self.court_zone)
+
+            item = {
+                "box": box,
+                "cx": cx,
+                "cy": cy,
+                "inside": inside,
+            }
+
+            players.append(item)
+
+            if inside:
+                court_players.append(item)
+
+        return players, court_players
+
+    def _target_from_players(self, court_players):
+        if not court_players:
+            xs = [p[0] for p in self.court_zone]
+            ys = [p[1] for p in self.court_zone]
+            return sum(xs) / len(xs), sum(ys) / len(ys), "CENTER-COURT"
+
+        left = min(p["box"]["x1"] for p in court_players)
+        right = max(p["box"]["x2"] for p in court_players)
+        top = min(p["box"]["y1"] for p in court_players)
+        bottom = max(p["box"]["y2"] for p in court_players)
+
+        return (left + right) / 2, (top + bottom) / 2, "FOLLOW-COURT-PLAYER"
+
+    def _smooth_pan(self, target_x, target_y, settings):
+        dx = target_x - self.camera_x
+        dy = target_y - self.camera_y
+
+        pan_speed = float(settings["pan_speed"])
+        deadzone_x = float(settings["deadzone_x"])
+        deadzone_y = float(settings["deadzone_y"])
+        fixed_zoom = float(settings["fixed_zoom"])
+
+        if abs(dx) >= deadzone_x:
+            self.camera_x += dx * pan_speed
+
+        if abs(dy) >= deadzone_y:
+            self.camera_y += dy * pan_speed
+
+        crop_w = self.frame_w / fixed_zoom
+        crop_h = self.frame_h / fixed_zoom
+
+        self.camera_x = max(crop_w / 2, min(self.frame_w - crop_w / 2, self.camera_x))
+        self.camera_y = max(crop_h / 2, min(self.frame_h - crop_h / 2, self.camera_y))
+
+    def _make_crop(self, settings):
+        fixed_zoom = float(settings["fixed_zoom"])
+
+        crop_w = self.frame_w / fixed_zoom
+        crop_h = self.frame_h / fixed_zoom
+
+        x1 = int(self.camera_x - crop_w / 2)
+        x2 = int(self.camera_x + crop_w / 2)
+        y1 = int(self.camera_y - crop_h / 2)
+        y2 = int(self.camera_y + crop_h / 2)
+
+        x1 = max(0, x1)
+        y1 = max(0, y1)
+        x2 = min(self.frame_w, x2)
+        y2 = min(self.frame_h, y2)
+
+        return x1, y1, x2, y2
+
+    def _draw_debug(self, output, players, court_players, mode, settings):
+        sx = self.output_width / self.frame_w
+        sy = self.output_height / self.frame_h
+
+        zone = [(int(x * sx), int(y * sy)) for x, y in self.court_zone]
+        cv2.polylines(output, [np.array(zone, dtype=np.int32)], True, (0, 255, 0), 2)
+
+        for p in players:
+            box = p["box"]
+            color = (0, 255, 0) if p["inside"] else (0, 0, 255)
+
+            x1 = int(box["x1"] * sx)
+            y1 = int(box["y1"] * sy)
+            x2 = int(box["x2"] * sx)
+            y2 = int(box["y2"] * sy)
+
+            cv2.rectangle(output, (x1, y1), (x2, y2), color, 2)
+
+        cv2.putText(
+            output,
+            f"AI Director v0.4.63 | PAN ONLY | {mode} | Pan:{settings['pan_speed']} DeadX:{settings['deadzone_x']} Zoom:{settings['fixed_zoom']}",
+            (25, 40),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.65,
+            (255, 255, 255),
+            2,
+        )
+
+    def _process_loop(self):
+        last_id = -1
+
+        while self.running:
+            with self.lock:
+                if self.latest_frame is None or self.latest_frame_id == last_id:
+                    frame = None
+                else:
+                    frame = self.latest_frame.copy()
+                    last_id = self.latest_frame_id
+
+            if frame is None:
+                time.sleep(0.01)
+                continue
+
+            if self.court_zone is None:
+                self._init_scene(frame)
+
+            settings = load_director_settings(self.camera_id)
+
+            players, court_players = self._detect_players(frame)
+
+            target_x, target_y, mode = self._target_from_players(court_players)
+            self._smooth_pan(target_x, target_y, settings)
+
+            x1, y1, x2, y2 = self._make_crop(settings)
+            crop = frame[y1:y2, x1:x2]
+
+            if crop.size == 0:
+                output = cv2.resize(frame, (self.output_width, self.output_height))
+            else:
+                output = cv2.resize(crop, (self.output_width, self.output_height))
+
+            self._draw_debug(output, players, court_players, mode, settings)
+
+            ok, buffer = cv2.imencode(".jpg", output, [cv2.IMWRITE_JPEG_QUALITY, 68])
+
+            if ok:
+                with self.lock:
+                    self.latest_jpeg = buffer.tobytes()
+
+            time.sleep(0.001)
+
+    def mjpeg(self):
+        while True:
+            with self.lock:
+                jpg = self.latest_jpeg
+
+            if jpg is None:
+                time.sleep(0.03)
+                continue
+
+            yield (
+                b"--frame\r\n"
+                b"Content-Type: image/jpeg\r\n\r\n"
+                + jpg
+                + b"\r\n"
+            )
+
+            time.sleep(0.03)
+
+
+def generate_director_mjpeg(rtsp_url, camera_id=0, conf=0.35):
+    key = rtsp_url + f":camera-{camera_id}:v0463"
+
+    if key not in _WORKERS:
+        worker = PanOnlyDirectorWorker(rtsp_url=rtsp_url, camera_id=camera_id, conf=conf)
+        worker.start()
+        _WORKERS[key] = worker
+
+    return _WORKERS[key].mjpeg()
